@@ -13,6 +13,7 @@ from transformers import GPT2Tokenizer
 
 class SokobanLMDataset(Dataset):
     def __init__(self,
+                 tokenizer,
                  data_source="boxoban",
                  split="train",
                  chunk_size=128):
@@ -20,9 +21,7 @@ class SokobanLMDataset(Dataset):
         self.split = split
         self.chunk_size = chunk_size
 
-        # Initialize the GPT2 tokenizer and add a custom PAD token
-        self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-        self.tokenizer.add_special_tokens({"pad_token": "PAD"})
+        self.tokenizer = tokenizer
         self.pad_token_id = self.tokenizer.pad_token_id
 
         all_levels = []
