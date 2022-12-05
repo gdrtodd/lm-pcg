@@ -1,0 +1,56 @@
+# Dataset args
+game: sokoban
+data_source: null
+chunk_size: 128
+
+# Model args
+model: gpt2
+warmup_proportion: 0.0002
+weight_decay: 0.01
+max_grad_norm: 1
+learning_rate: 0.0001
+
+# Run args
+seed: 42
+batch_size: 16
+epochs: 100
+save_freq: 1000
+eval_freq: 1000
+no_log: false
+
+# Generation args
+num_eval_samples: 20
+eval_sim_threshold: 0.9
+room_mode: naive
+gen_freq: 50
+gen_len: 128
+gen_context: '#'
+gen_temp: 1
+gen_beams: 5
+gen_top_k: 50
+gen_top_p: 1.0
+gen_typical_p: 1.0
+
+
+defaults:
+  # - override hydra/launcher: submitit_local
+  - override hydra/launcher: submitit_slurm
+
+hydra:
+  sweeper:
+    params:
+      # We will sweep over these parameters when the `--multirun` flag is used.
+      model: gpt2, codeparrot, java-gpt2, incoder-1B, incoder-6B 
+      # chunk_size: 128, 256, 512
+
+  # SLURM-specific arguments
+  launcher:
+    tasks_per_node: 1
+    cpus_per_task: 10
+    gpus_per_node: 1
+    timeout_min: 1440
+    mem_gb: 30
+
+  job:
+    # Prevent hydra from automatically changing the working directory of each experiment.
+    chdir: False

@@ -1,4 +1,5 @@
 from pdb import set_trace as TT
+import hydra
 import os
 import json
 import torch
@@ -9,6 +10,7 @@ from tqdm import tqdm
 from datetime import datetime
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from conf.config import Config
 from datasets import SokobanLMDataset
 
 from transformers import pipeline
@@ -96,44 +98,45 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
     if not args.no_log:
         torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
 
-def main():
-    parser = argparse.ArgumentParser()
+@hydra.main(config_path="conf", config_name="config")
+def main(args: Config):
+    # parser = argparse.ArgumentParser()
 
-    # Dataset args
-    parser.add_argument('--game', type=str, default="sokoban", choices=["sokoban"])
-    parser.add_argument('--data_source', type=str)
-    parser.add_argument('--chunk_size', type=int, default=512)
+    # # Dataset args
+    # parser.add_argument('--game', type=str, default="sokoban", choices=["sokoban"])
+    # parser.add_argument('--data_source', type=str)
+    # parser.add_argument('--chunk_size', type=int, default=512)
 
-    # Model args
-    parser.add_argument('--model', type=str, default="gpt2", choices=["gpt2", "codeparrot", "java-gpt2", "incoder-1B", "incoder-6B"])
-    parser.add_argument('--warmup_proportion', type=float, default=0.0002)
-    parser.add_argument('--weight_decay', type=float, default=0.01)
-    parser.add_argument('--max_grad_norm', type=int, default=1)
-    parser.add_argument('--learning_rate', type=float, default=1e-4)
+    # # Model args
+    # parser.add_argument('--model', type=str, default="gpt2", choices=["gpt2", "codeparrot", "java-gpt2", "incoder-1B", "incoder-6B"])
+    # parser.add_argument('--warmup_proportion', type=float, default=0.0002)
+    # parser.add_argument('--weight_decay', type=float, default=0.01)
+    # parser.add_argument('--max_grad_norm', type=int, default=1)
+    # parser.add_argument('--learning_rate', type=float, default=1e-4)
 
-    # Run args
-    parser.add_argument('--seed', type=int, default=42, help="Random seed for reproducibility.")
-    parser.add_argument('--batch_size', type=int, default=1)
-    parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--save_freq', type=int, default=1000)
-    parser.add_argument('--eval_freq', type=int, default=1000)
-    parser.add_argument('--no_log', action='store_true')
+    # # Run args
+    # parser.add_argument('--seed', type=int, default=42, help="Random seed for reproducibility.")
+    # parser.add_argument('--batch_size', type=int, default=1)
+    # parser.add_argument('--epochs', type=int, default=100)
+    # parser.add_argument('--save_freq', type=int, default=1000)
+    # parser.add_argument('--eval_freq', type=int, default=1000)
+    # parser.add_argument('--no_log', action='store_true')
 
-    # Generation args
-    parser.add_argument('--num_eval_samples', type=int, default=20)
-    parser.add_argument('--eval_sim_threshold', type=float, default=0.9)
-    parser.add_argument('--room_mode', type=str, default="naive", choices=["naive", "categories", "colors"])
-    parser.add_argument('--gen_freq', type=int, default=50)
-    parser.add_argument('--gen_len', type=int, default=1024)
-    parser.add_argument('--gen_context', type=str, default="#")
-    parser.add_argument('--gen_temp', type=float, default=1)
-    parser.add_argument('--gen_beams', type=int, default=5)
-    parser.add_argument('--gen_top_k', type=int, default=50)
-    parser.add_argument('--gen_top_p', type=float, default=1.0)
-    parser.add_argument('--gen_typical_p', type=float, default=1.0)
+    # # Generation args
+    # parser.add_argument('--num_eval_samples', type=int, default=20)
+    # parser.add_argument('--eval_sim_threshold', type=float, default=0.9)
+    # parser.add_argument('--room_mode', type=str, default="naive", choices=["naive", "categories", "colors"])
+    # parser.add_argument('--gen_freq', type=int, default=50)
+    # parser.add_argument('--gen_len', type=int, default=1024)
+    # parser.add_argument('--gen_context', type=str, default="#")
+    # parser.add_argument('--gen_temp', type=float, default=1)
+    # parser.add_argument('--gen_beams', type=int, default=5)
+    # parser.add_argument('--gen_top_k', type=int, default=50)
+    # parser.add_argument('--gen_top_p', type=float, default=1.0)
+    # parser.add_argument('--gen_typical_p', type=float, default=1.0)
     
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
     datetime_str = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     run_name = f"{datetime_str}-{args.model}-{args.game}"
@@ -184,7 +187,7 @@ def main():
             os.makedirs(output_dir_name)
 
         with open(os.path.join(output_dir_name, "config.json"), "w") as file:
-            json.dump(vars(args), file)
+            json.dump(dict(args), file)
 
     train_loop(model, tokenizer, optimizer, data_loader, output_dir_name, args)
 
