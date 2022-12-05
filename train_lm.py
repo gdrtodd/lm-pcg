@@ -1,3 +1,4 @@
+from pdb import set_trace as TT
 import os
 import json
 import torch
@@ -7,7 +8,7 @@ import argparse
 from tqdm import tqdm
 from datetime import datetime
 from torch.utils.data import DataLoader
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from datasets import SokobanLMDataset
 
 from transformers import pipeline
@@ -22,7 +23,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
     model.to(device)
 
     # Initialize the log writer
-    # log_writer = SummaryWriter(output_dir, flush_secs=100)
+    log_writer = SummaryWriter(output_dir, flush_secs=100)
 
     # Calculate the total number of training steps to initialize the scheduler
     num_train_steps = (len(data_loader) // args.batch_size) * args.epochs
@@ -60,9 +61,9 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
                 optimizer.zero_grad()
                 scheduler.step()
 
-                # if not args.no_log: 
-                #     log_writer.add_scalar("train/loss", loss, global_step)
-                #     log_writer.add_scalar("train/perplexity", perplexity, global_step)
+                if not args.no_log: 
+                    log_writer.add_scalar("train/loss", loss, global_step)
+                    log_writer.add_scalar("train/perplexity", perplexity, global_step)
 
                     # wandb.log({"train_loss": loss})
 
@@ -77,11 +78,12 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
                                              temperature=args.gen_temp, pad_token_id=tokenizer.eos_token_id)[0]
                     
                     sample = tokenizer.decode(outputs, skip_special_tokens=True)
-                    # if not args.no_log: log_writer.add_text("eval/random_sample", sample, global_step)
+                    if not args.no_log: 
+                        log_writer.add_text("eval/random_sample", sample, global_step)
                     print("\nSample:", sample, "\n")
 
-                if global_step%args.save_freq == 0:
-                    torch.save(model.state_dict(), os.path.join(output_dir_name, f"model_weights_{global_step}.pth"))
+                if global_step%args.save_freq == 0 and not args.no_log:
+                    torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
 
 
     except KeyboardInterrupt:
@@ -91,9 +93,10 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
 
     print("Finished training.")
     progress_bar.close()
-    torch.save(model.state_dict(), os.path.join(output_dir_name, f"model_weights_{global_step}.pth"))
+    if not args.no_log:
+        torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
 
     # Dataset args
@@ -178,9 +181,13 @@ if __name__ == "__main__":
     if not args.no_log:
         output_dir_name = f"./logs/{run_name}"
         if not os.path.exists(output_dir_name):
-            os.mkdir(output_dir_name)
+            os.makedirs(output_dir_name)
 
         with open(os.path.join(output_dir_name, "config.json"), "w") as file:
             json.dump(vars(args), file)
 
     train_loop(model, tokenizer, optimizer, data_loader, output_dir_name, args)
+
+
+if __name__ == "__main__":
+    main()

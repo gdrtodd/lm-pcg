@@ -44,16 +44,25 @@ class SokobanLMDataset(Dataset):
         else:
             raise NotImplementedError
 
-        all_token_ids = []
+        # Load token ids if available
+        token_ids_path = os.path.join(data_dir, f"all_token_ids.npy")
+        if os.path.isfile(token_ids_path):
+            self.all_token_ids = np.load(token_ids_path)
 
-        for level in tqdm(all_levels, desc="Tokenizing levels"):
-            token_ids = self.tokenizer.encode(level)
-            if len(token_ids) < self.chunk_size:
-                token_ids += [self.pad_token_id] * (self.chunk_size - len(token_ids))
+        else:
+            all_token_ids = []
 
-            all_token_ids += token_ids
+            for level in tqdm(all_levels, desc="Tokenizing levels"):
+                token_ids = self.tokenizer.encode(level)
+                if len(token_ids) < self.chunk_size:
+                    token_ids += [self.pad_token_id] * (self.chunk_size - len(token_ids))
 
-        self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
+                all_token_ids += token_ids
+
+            # Save token ids to disk
+            np.save(token_ids_path, all_token_ids)
+
+            self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
     def decode_ids(self, token_ids):
         '''

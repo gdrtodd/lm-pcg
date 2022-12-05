@@ -1,0 +1,6 @@
+pandas
+tensorboard
+torch
+tqdm
+transformers
+wandb
