@@ -20,8 +20,6 @@ no_log: false
 
 # Generation args
 num_eval_samples: 20
-eval_sim_threshold: 0.9
-room_mode: naive
 gen_freq: 50
 gen_len: 128
 gen_context: '#'

@@ -28,11 +28,8 @@ class Config:
     no_log: bool = False
 
     # Generation
-    num_eval_samples: int = 20
-    eval_sim_threshold: float = 0.9
-    room_mode: str = "naive"  # choices=["naive", "categories", "colors"]
     gen_freq: int = 50
-    gen_len: int = 1024
+    gen_len: int = 128
     gen_context: str = "#"
     gen_temp: float = 1
     gen_beams: int = 5
