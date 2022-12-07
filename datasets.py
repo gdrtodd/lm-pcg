@@ -10,6 +10,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 from transformers import GPT2Tokenizer
 
+from utils import encode_boxoban_text
 
 class SokobanLMDataset(Dataset):
     def __init__(self,
@@ -40,6 +41,18 @@ class SokobanLMDataset(Dataset):
                     raw_levels = [level[level.find("\n")+1:].strip().replace(" ", "-") for level in raw_levels]
 
                     all_levels += raw_levels
+
+        elif data_source == "boxoban-text":
+            data_dir = os.path.join("./data", "boxoban-medium", split)
+
+            level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
+            for file in level_files:
+                with open(file, "r") as f:
+
+                    # Split into individual levels
+                    raw_levels = f.read().split("; ")
+
+                    all_levels += [encode_boxoban_text(level) for level in raw_levels]
 
         else:
             raise NotImplementedError
@@ -80,6 +93,6 @@ class SokobanLMDataset(Dataset):
         return len(self.all_token_ids) // self.chunk_size
 
 if __name__ == "__main__":
-    d = SokobanLMDataset()
-    print(d[10])
-    print(d.decode_ids(d[10]))
+    d = SokobanLMDataset(data_source="boxoban-text")
+    # print(d[10])
+    # print(d.decode_ids(d[10]))
