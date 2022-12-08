@@ -16,7 +16,7 @@ The config files are located in `config/`. Settings can be changed in `config/co
 python train_lm.py batch_size=32
 ```
 
-### TODO:
+## TODO:
 
 - try a character-based model like k9
 - force per-character tokenization (by adding special characters between ascii symbols or similar)

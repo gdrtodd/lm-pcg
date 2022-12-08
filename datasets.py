@@ -27,7 +27,7 @@ class SokobanLMDataset(Dataset):
 
         all_levels = []
 
-        # Pre-process levels
+        # Pre-process levels.
         if data_source == "boxoban":
             data_dir = os.path.join("./data", "boxoban-medium", split)
 
@@ -58,7 +58,7 @@ class SokobanLMDataset(Dataset):
         else:
             raise NotImplementedError
 
-        # Tokenize processed levels (loading from disk if available).
+        # Tokenize processed levels (or load tokens from disk if available).
         token_ids_path = os.path.join(data_dir, f"{data_source}_all_token_ids.npy")
         if os.path.isfile(token_ids_path):
             self.all_token_ids = np.load(token_ids_path)

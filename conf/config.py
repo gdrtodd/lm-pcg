@@ -1,4 +1,5 @@
 from dataclasses import MISSING, dataclass
+from typing import Optional
 
 from hydra.core.config_store import ConfigStore
 
@@ -9,7 +10,7 @@ class Config:
 
     # Dataset
     game: str = "sokoban"
-    data_source: str = None
+    data_source: Optional[str] = None
     chunk_size: int = 512
 
     # Model
@@ -20,6 +21,8 @@ class Config:
     learning_rate: float = 1e-4
 
     # Run
+    exp_name: str = ""
+    overwrite: bool = False  # Overwrite the output directory if it exists (otherwise, attempt to load train state)
     seed: int = 42
     batch_size: int = 1
     epochs: int = 100
@@ -28,6 +31,7 @@ class Config:
     no_log: bool = False
 
     # Generation
+    num_eval_samples: int = 20
     gen_freq: int = 50
     gen_len: int = 128
     gen_context: str = "#"
@@ -36,3 +40,7 @@ class Config:
     gen_top_k: int = 50
     gen_top_p: float = 1.0
     gen_typical_p: float = 1.0
+
+
+cs = ConfigStore.instance()
+cs.store(name="base_config", node=Config)
