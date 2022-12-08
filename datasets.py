@@ -1,14 +1,9 @@
+import hashlib
 import os
-import re
-import sys
-import torch
-import pandas
 import numpy as np
-import torch.nn as nn
-
-from tqdm import tqdm
+import torch
 from torch.utils.data import Dataset
-from transformers import GPT2Tokenizer
+from tqdm import tqdm
 
 from utils import encode_boxoban_text
 
@@ -17,13 +12,16 @@ class SokobanLMDataset(Dataset):
                  tokenizer,
                  data_source="boxoban",
                  split="train",
-                 chunk_size=128):
+                 chunk_size=128,
+                 cache_dir="./caches"):
 
         self.split = split
         self.chunk_size = chunk_size
 
         self.tokenizer = tokenizer
         self.pad_token_id = self.tokenizer.pad_token_id
+
+        self.level_hashes = set()
 
         all_levels = []
 
@@ -59,22 +57,37 @@ class SokobanLMDataset(Dataset):
             raise NotImplementedError
 
         # Tokenize processed levels (or load tokens from disk if available).
-        token_ids_path = os.path.join(data_dir, f"{data_source}_all_token_ids.npy")
-        if os.path.isfile(token_ids_path):
+        token_ids_path = os.path.join(cache_dir, f"{data_source}_{split}_all_token_ids.npy")
+        level_hashes_path = os.path.join(cache_dir, f"{data_source}_{split}_level_hashes.npy")
+
+        dups = 0
+
+        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
+            print(f"Loading tokens from cache at {token_ids}...")
             self.all_token_ids = np.load(token_ids_path)
+            self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
 
         else:
             all_token_ids = []
 
             for level in tqdm(all_levels, desc="Tokenizing levels"):
+                # We use the MD5 hash of the level as a unique identifier which is stable across runs
+                level_hash = int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+                if level_hash in self.level_hashes:
+                    dups += 1
+                    continue
+
+                self.level_hashes.add(level_hash)
+
                 token_ids = self.tokenizer.encode(level)
                 if len(token_ids) < self.chunk_size:
                     token_ids += [self.pad_token_id] * (self.chunk_size - len(token_ids))
 
                 all_token_ids += token_ids
 
-            # Save token ids to disk
+            # Save token ids and hashes to disk
             np.save(token_ids_path, all_token_ids)
+            np.save(level_hashes_path, self.level_hashes)
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
