@@ -4,7 +4,7 @@ import os
 import json
 import torch
 from tqdm import tqdm
-from datetime import datetime
+import shutil
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from conf.config import Config
@@ -14,7 +14,37 @@ from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
+def save_train_state(model, optimizer, global_step, output_dir):
+    # Get paths of any previous checkpoints
+    prior_checkpoint_paths = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.startswith("checkpoint-")]
+
+    # Save current checkpoint
+    output_dir = os.path.join(output_dir, "checkpoint-{}".format(global_step))
+    model.save_pretrained(output_dir)
+    torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
+    with open(os.path.join(output_dir, "global_step.txt"), "w") as f:
+        f.write(str(global_step))
+
+    # Delete prior checkpoints
+    [shutil.rmtree(path) for path in prior_checkpoint_paths]
+
+def load_train_state(output_dir):
+    print("Attempting to load checkpoint from {}...".format(output_dir))
+
+    # Set output dir to most recent checkpoint
+    prior_checkpoint_paths = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.startswith("checkpoint-")]
+    prior_checkpoint_paths = sorted(prior_checkpoint_paths, key=lambda x: int(x.split("-")[-1]))
+    output_dir = prior_checkpoint_paths[-1]
+
+    # Load
+    model = AutoModelForCausalLM.from_pretrained(output_dir)
+    optimizer_state_dict = torch.load(os.path.join(output_dir, "optimizer.pt"))
+    with open(os.path.join(output_dir, "global_step.txt"), "r") as f:
+        global_step = int(f.read())
+
+    return model, optimizer_state_dict, global_step
+
+def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Map the model to the available device
@@ -28,17 +58,22 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
     scheduler = get_linear_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=int(args.warmup_proportion * num_train_steps),
-        num_training_steps=num_train_steps)
+        num_training_steps=num_train_steps,
+        last_epoch=global_step if global_step > 0 else -1,)
 
     # Set up for training
     model.train()
-    global_step = 0
     progress_bar = tqdm(total=num_train_steps, desc=f"Training {args.model} model")
+    progress_bar.update(global_step)
+    epoch, batch_i = global_step // len(data_loader), global_step % len(data_loader)
 
     try:
-        for epoch in range(args.epochs):
-            for batch in data_loader:
+        for epoch in range(epoch, args.epochs):
+            for batch_i in range(batch_i, len(data_loader)):
                 global_step += 1
+
+                # Note that when re-loading mid-epoch, we may repeat certain batches.
+                batch = next(iter(data_loader))
 
                 token_ids = batch["input_ids"].to(device)
                 labels = token_ids.clone().detach()
@@ -81,7 +116,8 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
                     print("\nSample:\n", sample, "\n")
 
                 if global_step%args.save_freq == 0 and not args.no_log:
-                    torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
+                    # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
+                    save_train_state(model, optimizer, global_step, output_dir)
 
 
     except KeyboardInterrupt:
@@ -92,13 +128,26 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, args):
     print("Finished training.")
     progress_bar.close()
     if not args.no_log:
-        torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
+        # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
+        save_train_state(model, optimizer, global_step, output_dir)
+
+
+def get_run_name(args):
+    # datetime_str = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+    run_name = os.path.join(
+        args.game,
+        args.model,
+        args.data_source if args.data_source else "",
+        f"chunk_size-{args.chunk_size}_lr-{args.learning_rate}",
+        args.exp_name,
+        f"seed-{args.seed}",
+    )
+    return run_name
+
 
 @hydra.main(config_path="conf", config_name="config")
 def main(args: Config):
-
-    datetime_str = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-    run_name = f"{datetime_str}-{args.model}-{args.game}"
+    run_name = get_run_name(args)
 
     # wandb.init(project="game-generation-modeling", entity="gdrtodd", config={}, name=run_name)
     # wandb.config.update(args)
@@ -137,18 +186,34 @@ def main(args: Config):
     data_loader = DataLoader(dataset, collate_fn=data_collator, batch_size=args.batch_size, shuffle=True, num_workers=4)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
+    global_step = 0
 
-    # Create the output directory
-    output_dir_name = None
+    # Create/load/overwrite the output directory if logging.
+    output_dir = None
     if not args.no_log:
-        output_dir_name = f"./logs/{run_name}"
-        if not os.path.exists(output_dir_name):
-            os.makedirs(output_dir_name)
+        output_dir = f"./logs/{run_name}"
 
-        with open(os.path.join(output_dir_name, "config.json"), "w") as file:
+        # Overwrite output directory, or load train state if checkpoint exists
+        if args.overwrite:
+            shutil.rmtree(output_dir, ignore_errors=True)
+        
+        elif os.path.exists(output_dir):
+            try:
+                model, optimizer_state_dict, global_step = load_train_state(output_dir)
+                optimizer.load_state_dict(optimizer_state_dict)
+                print("Loaded checkpoint from step", global_step)
+            except FileNotFoundError:
+                print(f"No checkpoint not found in {output_dir}. Removing directory and starting from scratch.")
+                shutil.rmtree(output_dir, ignore_errors=True)
+
+        # Create output directory if it doesn't exist
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        with open(os.path.join(output_dir, "config.json"), "w") as file:
             json.dump(dict(args), file)
 
-    train_loop(model, tokenizer, optimizer, data_loader, output_dir_name, args)
+    train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args)
 
 
 if __name__ == "__main__":
