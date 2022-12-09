@@ -106,11 +106,11 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                 progress_bar.set_postfix({"loss": loss.item()})
 
                 if global_step%args.gen_freq == 0:
-                    inputs = tokenizer(args.gen_context, return_tensors="pt").input_ids
+                    inputs = tokenizer(tokenizer.bos_token + args.gen_context, return_tensors="pt").input_ids
                     inputs = inputs.to(device)
 
                     outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
-                                             temperature=args.gen_temp, pad_token_id=tokenizer.eos_token_id)[0]
+                                             temperature=args.gen_temp)[0]
                     
                     sample = tokenizer.decode(outputs, skip_special_tokens=True)
                     if not args.no_log: 
@@ -179,7 +179,9 @@ def main(args: Config):
     # Instantiate the tokenizer based on the model's
     model_name = model_mapping[args.model]
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.add_special_tokens({"pad_token": "PAD"})
+    tokenizer.add_special_tokens({"pad_token": "PAD",
+                                  "bos_token": "START",
+                                  "eos_token": "END"})
 
     # Instantiate the dataset
     if args.game == "sokoban":

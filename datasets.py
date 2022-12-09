@@ -78,11 +78,8 @@ class SokobanLMDataset(Dataset):
                 self.level_hashes.add(level_hash)
 
                 # Add start and end tokens, and tokenize
-                level = f"[START]{level}[END]" # TODO: should we use the tokenizer's special tokens instead?
-                token_ids = self.tokenizer.encode(level)
-
-                if len(token_ids) < self.chunk_size:
-                    token_ids += [self.pad_token_id] * (self.chunk_size - len(token_ids))
+                level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}" # TODO: should we use the tokenizer's special tokens instead?
+                token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
 
