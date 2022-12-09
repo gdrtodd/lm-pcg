@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from utils import encode_boxoban_text
+from utils import encode_boxoban_text, decode_boxoban_text
 
 class SokobanLMDataset(Dataset):
     def __init__(self,
@@ -15,6 +15,7 @@ class SokobanLMDataset(Dataset):
                  chunk_size=128,
                  cache_dir="./caches"):
 
+        self.data_source = data_source
         self.split = split
         self.chunk_size = chunk_size
 
@@ -60,10 +61,8 @@ class SokobanLMDataset(Dataset):
         token_ids_path = os.path.join(cache_dir, f"{data_source}_{split}_all_token_ids.npy")
         level_hashes_path = os.path.join(cache_dir, f"{data_source}_{split}_level_hashes.npy")
 
-        dups = 0
-
         if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
-            print(f"Loading tokens from cache at {token_ids}...")
+            print(f"Loading tokens from cache at {token_ids_path}...")
             self.all_token_ids = np.load(token_ids_path)
             self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
 
@@ -72,14 +71,16 @@ class SokobanLMDataset(Dataset):
 
             for level in tqdm(all_levels, desc="Tokenizing levels"):
                 # We use the MD5 hash of the level as a unique identifier which is stable across runs
-                level_hash = int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+                level_hash = self._hash_level(level)
                 if level_hash in self.level_hashes:
-                    dups += 1
                     continue
 
                 self.level_hashes.add(level_hash)
 
+                # Add start and end tokens, and tokenize
+                level = f"[START]{level}[END]" # TODO: should we use the tokenizer's special tokens instead?
                 token_ids = self.tokenizer.encode(level)
+
                 if len(token_ids) < self.chunk_size:
                     token_ids += [self.pad_token_id] * (self.chunk_size - len(token_ids))
 
@@ -91,11 +92,18 @@ class SokobanLMDataset(Dataset):
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
+    def _hash_level(self, level):
+        return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+
     def decode_ids(self, token_ids):
         '''
-        Convert the list of provided GPT2 token ids to a string and return it
+        Decode an array of token IDs back into text. Depending on the data source, this may also apply
+        some post-processing to the text.
         '''
         text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
+
+        if self.data_source == "boxoban-text":
+            text = decode_boxoban_text(text)
 
         return text
 

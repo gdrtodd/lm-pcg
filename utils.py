@@ -35,11 +35,15 @@ def decode_boxoban_text(text):
     level = ""
 
     for line in text.split("\n"):
-        for section in line.split(", "):
-            count, char = section.split(" ")
-            level += BOXOBAN_INVERSE_MAPPING[char] * int(count)
-    
-        level += "\n"
+        try:
+            for section in line.split(", "):
+                count, char = section.split(" ")
+                level += BOXOBAN_INVERSE_MAPPING[char] * int(count)
+        
+            level += "\n"
+
+        except:
+            level += "Invalid line\n"
 
     return level
 

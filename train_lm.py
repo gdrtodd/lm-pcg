@@ -8,11 +8,13 @@ import shutil
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from conf.config import Config
-from datasets import SokobanLMDataset
 
 from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoTokenizer, AutoModelForCausalLM
+
+from datasets import SokobanLMDataset
+from evaluate import evaluate
 
 def save_train_state(model, optimizer, global_step, output_dir):
     # Get paths of any previous checkpoints
@@ -118,6 +120,17 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                 if global_step%args.save_freq == 0 and not args.no_log:
                     # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
                     save_train_state(model, optimizer, global_step, output_dir)
+
+                if global_step%args.eval_freq == 0:
+                    print(f"\nGenerating samples for evaluation at step {global_step}...")
+                    prop_playable, prop_novel = evaluate(model, device, tokenizer, data_loader.dataset,  args)
+
+                    print("Proportion of playable levels:", prop_playable)
+                    print("Proportion of novel levels:", prop_novel)
+
+                    if not args.no_log:
+                        log_writer.add_scalar("eval/prop_playable", prop_playable, global_step)
+                        log_writer.add_scalar("eval/prop_novel", prop_novel, global_step)
 
 
     except KeyboardInterrupt:
