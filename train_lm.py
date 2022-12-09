@@ -110,7 +110,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     inputs = inputs.to(device)
 
                     outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
-                                             temperature=args.gen_temp)[0]
+                                             temperature=args.gen_temp, do_sample=True)[0]
                     
                     sample = tokenizer.decode(outputs, skip_special_tokens=False)
                     if not args.no_log: 
@@ -180,8 +180,7 @@ def main(args: Config):
     model_name = model_mapping[args.model]
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.add_special_tokens({"pad_token": "PAD",
-                                  "bos_token": "START",
-                                  "eos_token": "END"})
+                                  "bos_token": "START"})
 
     # Instantiate the dataset
     if args.game == "sokoban":
