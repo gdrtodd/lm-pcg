@@ -95,7 +95,7 @@ class SokobanLMDataset(Dataset):
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
 
-    def decode_ids(self, token_ids):
+    def decode(self, token_ids):
         '''
         Decode an array of token IDs back into text. Depending on the data source, this may also apply
         some post-processing to the text.
