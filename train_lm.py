@@ -112,10 +112,10 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
                                              temperature=args.gen_temp)[0]
                     
-                    sample = tokenizer.decode(outputs, skip_special_tokens=True)
+                    sample = tokenizer.decode(outputs, skip_special_tokens=False)
                     if not args.no_log: 
                         log_writer.add_text("eval/random_sample", sample, global_step)
-                    print("\nSample:\n", sample, "\n")
+                    print(f"\nSample:\n{sample}\n")
 
                 if global_step%args.save_freq == 0 and not args.no_log:
                     # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
