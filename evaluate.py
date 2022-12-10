@@ -12,7 +12,7 @@ def evaluate(model, device, tokenizer, dataset, args):
     # Generate samples
     with torch.no_grad():
         samples = model.generate(
-            tokenizer.encode(args.gen_context, return_tensors="pt").to(device),
+            tokenizer.encode(tokenizer.bos_token + args.gen_context, return_tensors="pt").to(device),
             max_length=args.gen_len,
             temperature=args.gen_temp,
             do_sample=True,
@@ -20,9 +20,7 @@ def evaluate(model, device, tokenizer, dataset, args):
             top_p=args.gen_top_p,
             typical_p=args.gen_typical_p,
             num_beams=args.gen_beams,
-            early_stopping=True,
-            num_return_sequences=args.num_eval_samples,
-            pad_token_id=tokenizer.eos_token_id
+            num_return_sequences=args.num_eval_samples
         )
 
     # Decode samples
