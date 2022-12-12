@@ -27,7 +27,7 @@ def evaluate(model, device, tokenizer, dataset, args):
     samples = [dataset.decode(sample) for sample in samples]
 
     prop_playable = 0 # TODO: compute playability using ASTAR agent
-    prop_novel = len(dataset.level_hashes.intersection(set([dataset._hash_level(sample) for sample in samples]))) / len(samples)
+    prop_novel = 1 - (len(dataset.level_hashes.intersection(set([dataset._hash_level(sample) for sample in samples]))) / len(samples))
 
     model.train()
 
