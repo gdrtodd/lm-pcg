@@ -4,6 +4,18 @@ import shutil
 import torch
 from transformers import AutoModelForCausalLM
 
+def get_run_name(args):
+    # datetime_str = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+    run_name = os.path.join(
+        args.game,
+        args.model,
+        args.data_source if args.data_source else "",
+        f"chunk_size-{args.chunk_size}_lr-{args.learning_rate}",
+        args.exp_name,
+        f"seed-{args.seed}",
+    )
+    return run_name
+
 def save_train_state(model, optimizer, global_step, output_dir):
     # Get paths of any previous checkpoints
     prior_checkpoint_paths = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.startswith("checkpoint-")]

@@ -15,7 +15,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from datasets import SokobanLMDataset
 from evaluate import evaluate
-from utils import save_train_state, load_train_state
+from utils import get_run_name, save_train_state, load_train_state
 
 def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -114,20 +114,6 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     if not args.no_log:
         # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
         save_train_state(model, optimizer, global_step, output_dir)
-
-
-def get_run_name(args):
-    # datetime_str = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-    run_name = os.path.join(
-        args.game,
-        args.model,
-        args.data_source if args.data_source else "",
-        f"chunk_size-{args.chunk_size}_lr-{args.learning_rate}",
-        args.exp_name,
-        f"seed-{args.seed}",
-    )
-    return run_name
-
 
 @hydra.main(config_path="conf", config_name="config")
 def main(args: Config):
