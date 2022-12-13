@@ -30,7 +30,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     epoch, batch_i = global_step // len(data_loader), global_step % len(data_loader)
 
     # Convert data loader to iterator and progress it to the current batch
-    data_loader = iter(data_loader)
+    data_loader, dataset = iter(data_loader), data_loader.dataset
     for _ in range(batch_i):
         next(data_loader)
 
@@ -63,7 +63,6 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                 labels[labels == tokenizer.pad_token_id] = -100
 
                 loss = model(token_ids, labels=labels)[0]
-                perplexity = torch.exp(loss).item()
 
                 # Clear some memory before the expensive gradient computation
                 del token_ids
@@ -77,9 +76,6 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 if not args.no_log: 
                     log_writer.add_scalar("train/loss", loss, global_step)
-                    log_writer.add_scalar("train/perplexity", perplexity, global_step)
-
-                    # wandb.log({"train_loss": loss})
 
                 progress_bar.update(1)
                 progress_bar.set_postfix({"loss": loss.item()})
@@ -93,7 +89,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     
                     sample = tokenizer.decode(outputs, skip_special_tokens=True)
                     if not args.no_log: 
-                        log_writer.add_text("eval/random_sample", sample, global_step)
+                        log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
                     print(f"\nSample:\n{sample}\n")
 
                 if global_step%args.save_freq == 0 and not args.no_log:
@@ -102,7 +98,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 if global_step%args.eval_freq == 0:
                     print(f"\nGenerating samples for evaluation at step {global_step}...")
-                    prop_playable, prop_novel = evaluate(model, device, tokenizer, data_loader.dataset,  args)
+                    prop_playable, prop_novel = evaluate(model, device, tokenizer, dataset,  args)
 
                     print("Proportion of playable levels:", prop_playable)
                     print("Proportion of novel levels:", prop_novel)
