@@ -26,27 +26,35 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     # Initialize the log writer
     log_writer = SummaryWriter(output_dir, flush_secs=100)
 
+    # Calcuate current epoch and batch based on global step (for resuming training)
+    epoch, batch_i = global_step // len(data_loader), global_step % len(data_loader)
+
+    # Convert data loader to iterator and progress it to the current batch
+    data_loader = iter(data_loader)
+    for _ in range(batch_i):
+        next(data_loader)
+
     # Calculate the total number of training steps to initialize the scheduler
-    num_train_steps = (len(data_loader) // args.batch_size) * args.epochs
+    num_train_steps = len(data_loader) * args.epochs
     scheduler = get_linear_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=int(args.warmup_proportion * num_train_steps),
         num_training_steps=num_train_steps,
-        last_epoch=global_step if global_step > 0 else -1,)
+        last_epoch=global_step if global_step > 0 else -1)
 
     # Set up for training
     model.train()
+
+    # Initialize the progress bar
     progress_bar = tqdm(total=num_train_steps, desc=f"Training {args.model} model")
     progress_bar.update(global_step)
-    epoch, batch_i = global_step // len(data_loader), global_step % len(data_loader)
-
+    
     try:
         for epoch in range(epoch, args.epochs):
             for batch_i in range(batch_i, len(data_loader)):
                 global_step += 1
 
-                # Note that when re-loading mid-epoch, we may repeat certain batches.
-                batch = next(iter(data_loader))
+                batch = next(data_loader)
 
                 token_ids = batch["input_ids"].to(device)
                 labels = token_ids.clone().detach()
@@ -83,7 +91,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
                                              temperature=args.gen_temp, do_sample=True)[0]
                     
-                    sample = tokenizer.decode(outputs, skip_special_tokens=False)
+                    sample = tokenizer.decode(outputs, skip_special_tokens=True)
                     if not args.no_log: 
                         log_writer.add_text("eval/random_sample", sample, global_step)
                     print(f"\nSample:\n{sample}\n")
@@ -112,7 +120,6 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     print("Finished training.")
     progress_bar.close()
     if not args.no_log:
-        # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
         save_train_state(model, optimizer, global_step, output_dir)
 
 @hydra.main(config_path="conf", config_name="config")
