@@ -102,7 +102,7 @@ class SokobanLMDataset(Dataset):
         if self.data_source == "boxoban-text":
             text = decode_boxoban_text(text)
 
-        return text
+        return text.strip()
 
     def is_novel(self, level):
         '''
@@ -112,7 +112,40 @@ class SokobanLMDataset(Dataset):
         level_hash = self._hash_level(level)
         return level_hash not in self.level_hashes
 
-    def is_playable(self, level):
+    def is_playable(self, level, verbose=False):
+        '''
+        Returns whether the given level is playable by checking a variety of conditions:
+          1. the level is rectangular (i.e. every line is the same length)
+          2. the level contains only the following characters: "\n", "#", " ", "-", "@", "$", "."
+          3. the level contains exactly one player
+          4. the level contains the same number of boxes and goals (and at least one of each)
+          5. the level can be solved by an ASTAR agent
+        '''
+
+        # Check if the level is rectangular
+        line_lengths = [len(line) for line in level.split("\n")]
+        if len(set(line_lengths)) != 1:
+            if verbose: print("--Level is not rectangular--")
+            return False
+
+        # Check if the level contains only the allowed characters
+        allowed_chars = set("\n# -@$.")
+        if not set(level).issubset(allowed_chars):
+            if verbose: print("--Level contains invalid characters--")
+            return False
+
+        # Check if the level contains exactly one player
+        if level.count("@") != 1:
+            if verbose: print("--Level does not contain exactly one player--")
+            return False
+
+        # Check if the level contains the same number of boxes and goals
+        if level.count("$") != level.count(".") or level.count("$") == 0:
+            if verbose: print("--Level contains different numbers of boxes and goals--")
+            return False
+
+        # TODO: check if the level can be solved by an ASTAR agent
+
         return True
 
     def __getitem__(self, idx):

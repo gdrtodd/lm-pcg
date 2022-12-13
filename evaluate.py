@@ -17,6 +17,7 @@ def evaluate(model, device, tokenizer, dataset, args, verbose=False):
     model.eval()
 
     # Generate samples
+    if verbose: print("Generating samples...")
     with torch.no_grad():
         samples = model.generate(
             tokenizer.encode(tokenizer.bos_token + args.gen_context, return_tensors="pt").to(device),
@@ -53,8 +54,8 @@ def evaluate(model, device, tokenizer, dataset, args, verbose=False):
             print("_" * os.get_terminal_size().columns)
             print(sample)
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
-            print("Playable: ???")
-            print(f"Novel: {dataset._hash_level(sample) not in dataset.level_hashes}")
+            print(f"Playable: {dataset.is_playable(sample, verbose=True)}")
+            print(f"Novel: {dataset.is_novel(sample)}")
 
         print("_" * os.get_terminal_size().columns)
         print(f"Proportion playable: {prop_playable}")
