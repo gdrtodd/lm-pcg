@@ -30,9 +30,9 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     epoch, batch_i = global_step // len(data_loader), global_step % len(data_loader)
 
     # Convert data loader to iterator and progress it to the current batch
-    data_loader, dataset = iter(data_loader), data_loader.dataset
+    data_loader_iter, dataset = iter(data_loader), data_loader.dataset
     for _ in range(batch_i):
-        next(data_loader)
+        next(data_loader_iter)
 
     # Calculate the total number of training steps to initialize the scheduler
     num_train_steps = len(data_loader) * args.epochs
@@ -54,7 +54,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
             for batch_i in range(batch_i, len(data_loader)):
                 global_step += 1
 
-                batch = next(data_loader)
+                batch = next(data_loader_iter)
 
                 token_ids = batch["input_ids"].to(device)
                 labels = token_ids.clone().detach()
@@ -107,11 +107,17 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                         log_writer.add_scalar("eval/prop_playable", prop_playable, global_step)
                         log_writer.add_scalar("eval/prop_novel", prop_novel, global_step)
 
+            # Reset the data loader iterator and save at the end of each epoch
+            data_loader_iter = iter(data_loader)
+            batch_i = 0
+
+            if not args.no_log:
+                save_train_state(model, optimizer, global_step, output_dir)
+
 
     except KeyboardInterrupt:
-        print("Stopping early due to user input!")
         progress_bar.close()
-        exit()
+        exit("Stopping early due to user input")
 
     print("Finished training.")
     progress_bar.close()
