@@ -33,8 +33,11 @@ def evaluate(model, device, tokenizer, dataset, args, verbose=False):
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
 
-    prop_playable = 0 # TODO: compute playability using ASTAR agent
-    prop_novel = 1 - (len(dataset.level_hashes.intersection(set([dataset._hash_level(sample) for sample in samples]))) / len(samples))
+    num_playable = sum([dataset.is_playable(sample) for sample in samples])
+    num_novel = sum([dataset.is_novel(sample) for sample in samples])
+
+    prop_playable = num_playable / len(samples)
+    prop_novel = num_novel / len(samples)
 
     if verbose:
         print("GENERATION PARAMETERS:")
@@ -52,6 +55,10 @@ def evaluate(model, device, tokenizer, dataset, args, verbose=False):
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
             print("Playable: ???")
             print(f"Novel: {dataset._hash_level(sample) not in dataset.level_hashes}")
+
+        print("_" * os.get_terminal_size().columns)
+        print(f"Proportion playable: {prop_playable}")
+        print(f"Proportion novel: {prop_novel}")
 
     model.train()
 

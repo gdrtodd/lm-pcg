@@ -33,6 +33,8 @@ def save_train_state(model, optimizer, global_step, output_dir):
 def load_train_state(output_dir):
     print("Attempting to load checkpoint from {}...".format(output_dir))
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Set output dir to most recent checkpoint
     prior_checkpoint_paths = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.startswith("checkpoint-")]
     prior_checkpoint_paths = sorted(prior_checkpoint_paths, key=lambda x: int(x.split("-")[-1]))
@@ -40,7 +42,7 @@ def load_train_state(output_dir):
 
     # Load
     model = AutoModelForCausalLM.from_pretrained(output_dir)
-    optimizer_state_dict = torch.load(os.path.join(output_dir, "optimizer.pt"))
+    optimizer_state_dict = torch.load(os.path.join(output_dir, "optimizer.pt"), map_location=device)
     with open(os.path.join(output_dir, "global_step.txt"), "r") as f:
         global_step = int(f.read())
 

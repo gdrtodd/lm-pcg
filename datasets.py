@@ -104,6 +104,17 @@ class SokobanLMDataset(Dataset):
 
         return text
 
+    def is_novel(self, level):
+        '''
+        Returns whether the given level is novel by checking if its hashed value is in the set of
+        level hashes.
+        '''
+        level_hash = self._hash_level(level)
+        return level_hash not in self.level_hashes
+
+    def is_playable(self, level):
+        return True
+
     def __getitem__(self, idx):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
         return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
