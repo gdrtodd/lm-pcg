@@ -3,6 +3,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from transformers import AutoTokenizer
 from tqdm import tqdm
 
 from utils import encode_boxoban_text, decode_boxoban_text
@@ -10,7 +11,7 @@ from sokoban_solvers import EnhancedAStarAgent, State
 
 class SokobanLMDataset(Dataset):
     def __init__(self,
-                 tokenizer,
+                 tokenizer: AutoTokenizer,
                  data_source="boxoban",
                  split="train",
                  chunk_size=128,
@@ -30,7 +31,7 @@ class SokobanLMDataset(Dataset):
         all_levels = []
 
         # Pre-process levels.
-        if data_source == "boxoban":
+        if data_source in ["boxoban", "boxoban-chars"]:
             data_dir = os.path.join("./data", "boxoban-medium", split)
 
             level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
@@ -70,9 +71,18 @@ class SokobanLMDataset(Dataset):
             self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
 
         else:
+            # Optionally ensure each tile-character is tokenized individually
+            if data_source == "boxoban-chars":
+                tile_chars = ["#", "-", ".", "$", "@", "\n", tokenizer.bos_token, tokenizer.eos_token]
+                tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
+
             all_token_ids = []
 
             for level in tqdm(all_levels, desc="Tokenizing levels"):
+                # Skip empty level
+                if level == '':
+                    continue
+
                 # We use the MD5 hash of the level as a unique identifier which is stable across runs
                 level_hash = self._hash_level(level)
                 if level_hash in self.level_hashes:
@@ -81,8 +91,19 @@ class SokobanLMDataset(Dataset):
                 self.level_hashes.add(level_hash)
 
                 # Add start and end tokens, and tokenize
-                level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}" # TODO: should we use the tokenizer's special tokens instead?
-                token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
+                if data_source == "boxoban-chars":
+                    # Manual tokenization to ensure each tile token is separate
+                    token_ids = []
+                    level_rows = level.split('\n')
+                    for row in level_rows:
+                        token_ids += [tile_encodings[c] for c in row] + [tile_encodings['\n']]
+                    token_ids = [tile_encodings[tokenizer.bos_token]] + token_ids + [tile_encodings[tokenizer.eos_token]]
+                    # Pad
+                    token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
+                else:
+                    # Standard tokenization
+                    level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}" # TODO: should we use the tokenizer's special tokens instead?
+                    token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
 
