@@ -105,6 +105,8 @@ class SokobanLMDataset(Dataset):
         if self.data_source == "boxoban-text":
             text = decode_boxoban_text(text)
 
+        text = text.replace("-", " ")
+
         return text.strip()
 
     def is_novel(self, level):
@@ -149,10 +151,12 @@ class SokobanLMDataset(Dataset):
 
         # Check if the level can be solved by an ASTAR agent
         level_state = State().stringInitialize(level.split("\n"))
-        solution, node, iters = self.solver.getSolution(level_state)
+        solution, node, iters = self.solver.getSolution(level_state, maxIterations=50000)
         if not node.checkWin():
-            if verbose: print("--Level cannot be solved--")
+            if verbose: print("--Level cannot be solved (... in 50k steps)--")
             return False
+        elif verbose:
+            print(f"++Level can be solved in {len(solution)} moves++")
 
         return True
 

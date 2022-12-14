@@ -3,6 +3,7 @@ Credit to: Ahmed Khalifa, https://github.com/amidos2006/AutoSokoban/blob/master/
 '''
 
 from queue import PriorityQueue
+from tqdm import tqdm
 
 directions = [{"x":-1, "y":0}, {"x":1, "y":0}, {"x":0, "y":-1}, {"x":0, "y":1}]
 def getAllValidStates(state, maxStates=-1):
