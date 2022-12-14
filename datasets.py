@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from utils import encode_boxoban_text, decode_boxoban_text
+from sokoban_solvers import EnhancedAStarAgent, State
 
 class SokobanLMDataset(Dataset):
     def __init__(self,
@@ -21,6 +22,8 @@ class SokobanLMDataset(Dataset):
 
         self.tokenizer = tokenizer
         self.pad_token_id = self.tokenizer.pad_token_id
+
+        self.solver = EnhancedAStarAgent()
 
         self.level_hashes = set()
 
@@ -144,7 +147,12 @@ class SokobanLMDataset(Dataset):
             if verbose: print("--Level contains different numbers of boxes and goals--")
             return False
 
-        # TODO: check if the level can be solved by an ASTAR agent
+        # Check if the level can be solved by an ASTAR agent
+        level_state = State().stringInitialize(level.split("\n"))
+        solution, node, iters = self.solver.getSolution(level_state)
+        if not node.checkWin():
+            if verbose: print("--Level cannot be solved--")
+            return False
 
         return True
 

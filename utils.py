@@ -98,30 +98,39 @@ def decode_boxoban_text(text):
 if __name__ == "__main__":
     level = """
 ##########
-#   ######
-# $     ##
-#       ##
-######   #
-#### @ . #
-## #.$# ##
-# .$ .$  #
-#       ##
+### ######
+###@ #####
+### ######
+###$ #####
+### .#####
+###  #####
+# .$ $ ###
+#. $ .  ##
 ##########
     """
 
-    output = """10 wall
-1 wall, 2 empty, 7 wall
-1 wall, 1 empty, 1 box, 7 wall
-1 wall, 1 goal, 1 empty, 7 wall
-1 wall, 1 empty, 1 goal, 7 wall
-1 wall, 1 empty, 1 box, 7 wall
-1 wall, 1 empty, 1 goal, 7 wall
-1 wall, 1 box, 1 empty, 1 box, 1 empty, 5 wall
-1 wall, 1 player, 1 empty, 1 goal, 2 empty, 4 wall
-10 wall"""
+    from sokoban_solvers import EnhancedAStarAgent, State
 
-    print(decode_boxoban_text(output))
+    start_state = State().stringInitialize(level.split("\n"))
+
+    solver = EnhancedAStarAgent()
+    sol, node, iters = solver.getSolution(start_state)
+    print(sol)
+    print(node.checkWin())
+
+#     output = """10 wall
+# 1 wall, 2 empty, 7 wall
+# 1 wall, 1 empty, 1 box, 7 wall
+# 1 wall, 1 goal, 1 empty, 7 wall
+# 1 wall, 1 empty, 1 goal, 7 wall
+# 1 wall, 1 empty, 1 box, 7 wall
+# 1 wall, 1 empty, 1 goal, 7 wall
+# 1 wall, 1 box, 1 empty, 1 box, 1 empty, 5 wall
+# 1 wall, 1 player, 1 empty, 1 goal, 2 empty, 4 wall
+# 10 wall"""
+
+    # print(decode_boxoban_text(output))
 
     # print(level)
-    print(encode_boxoban_text(level))
+    # print(encode_boxoban_text(level))
     # print(decode_boxoban_text(encode_boxoban_text(level)))
