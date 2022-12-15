@@ -1,29 +1,31 @@
+import hashlib
 import os
-import re
-import sys
-import torch
-import pandas
 import numpy as np
-import torch.nn as nn
-
-from tqdm import tqdm
+import torch
 from torch.utils.data import Dataset
-from transformers import GPT2Tokenizer
+from tqdm import tqdm
 
-from utils import encode_boxoban_text
+from utils import encode_boxoban_text, decode_boxoban_text
+from sokoban_solvers import EnhancedAStarAgent, State
 
 class SokobanLMDataset(Dataset):
     def __init__(self,
                  tokenizer,
                  data_source="boxoban",
                  split="train",
-                 chunk_size=128):
+                 chunk_size=128,
+                 cache_dir="./caches"):
 
+        self.data_source = data_source
         self.split = split
         self.chunk_size = chunk_size
 
         self.tokenizer = tokenizer
         self.pad_token_id = self.tokenizer.pad_token_id
+
+        self.solver = EnhancedAStarAgent()
+
+        self.level_hashes = set()
 
         all_levels = []
 
@@ -59,32 +61,104 @@ class SokobanLMDataset(Dataset):
             raise NotImplementedError
 
         # Tokenize processed levels (or load tokens from disk if available).
-        token_ids_path = os.path.join(data_dir, f"{data_source}_all_token_ids.npy")
-        if os.path.isfile(token_ids_path):
+        token_ids_path = os.path.join(cache_dir, f"{data_source}_{split}_all_token_ids.npy")
+        level_hashes_path = os.path.join(cache_dir, f"{data_source}_{split}_level_hashes.npy")
+
+        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
+            print(f"Loading tokens from cache at {token_ids_path}...")
             self.all_token_ids = np.load(token_ids_path)
+            self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
 
         else:
             all_token_ids = []
 
             for level in tqdm(all_levels, desc="Tokenizing levels"):
-                token_ids = self.tokenizer.encode(level)
-                if len(token_ids) < self.chunk_size:
-                    token_ids += [self.pad_token_id] * (self.chunk_size - len(token_ids))
+                # We use the MD5 hash of the level as a unique identifier which is stable across runs
+                level_hash = self._hash_level(level)
+                if level_hash in self.level_hashes:
+                    continue
+
+                self.level_hashes.add(level_hash)
+
+                # Add start and end tokens, and tokenize
+                level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}" # TODO: should we use the tokenizer's special tokens instead?
+                token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
 
-            # Save token ids to disk
+            # Save token ids and hashes to disk
             np.save(token_ids_path, all_token_ids)
+            np.save(level_hashes_path, self.level_hashes)
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
-    def decode_ids(self, token_ids):
+    def _hash_level(self, level):
+        return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+
+    def decode(self, token_ids):
         '''
-        Convert the list of provided GPT2 token ids to a string and return it
+        Decode an array of token IDs back into text. Depending on the data source, this may also apply
+        some post-processing to the text.
         '''
         text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
 
-        return text
+        if self.data_source == "boxoban-text":
+            text = decode_boxoban_text(text)
+
+        text = text.replace("-", " ")
+
+        return text.strip()
+
+    def is_novel(self, level):
+        '''
+        Returns whether the given level is novel by checking if its hashed value is in the set of
+        level hashes.
+        '''
+        level_hash = self._hash_level(level)
+        return level_hash not in self.level_hashes
+
+    def is_playable(self, level, verbose=False):
+        '''
+        Returns whether the given level is playable by checking a variety of conditions:
+          1. the level is rectangular (i.e. every line is the same length)
+          2. the level contains only the following characters: "\n", "#", " ", "-", "@", "$", "."
+          3. the level contains exactly one player
+          4. the level contains the same number of boxes and goals (and at least one of each)
+          5. the level can be solved by an ASTAR agent
+        '''
+
+        # Check if the level is rectangular
+        line_lengths = [len(line) for line in level.split("\n")]
+        if len(set(line_lengths)) != 1:
+            if verbose: print("--Level is not rectangular--")
+            return False
+
+        # Check if the level contains only the allowed characters
+        allowed_chars = set("\n# -@$.")
+        if not set(level).issubset(allowed_chars):
+            if verbose: print("--Level contains invalid characters--")
+            return False
+
+        # Check if the level contains exactly one player
+        if level.count("@") != 1:
+            if verbose: print("--Level does not contain exactly one player--")
+            return False
+
+        # Check if the level contains the same number of boxes and goals
+        if level.count("$") != level.count(".") or level.count("$") == 0:
+            if verbose: print("--Level contains different numbers of boxes and goals--")
+            return False
+
+        # Check if the level can be solved by an ASTAR agent
+        level_state = State().stringInitialize(level.split("\n"))
+        solution, node, iters = self.solver.getSolution(level_state, maxIterations=50000)
+        if not node.checkWin():
+            if verbose: print("--Level cannot be solved (... in 50k steps)--")
+            return False
+        elif verbose:
+            print(f"++Level can be solved in {len(solution)} moves++")
+
+        return True
 
     def __getitem__(self, idx):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)

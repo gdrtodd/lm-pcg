@@ -1,13 +1,20 @@
 # Our custom log directory
 logs
+
 # hydra output
 outputs
+
 # hydra-submitit multirun output
 multirun
+
 # tensorboard log (created if `no_log` is True).
 runs  #
 
-*all_token_ids.npy
+# Large token id caches
+caches
+
+# Vscode configs
+.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
