@@ -1,4 +1,3 @@
-from pdb import set_trace as TT
 import hydra
 import os
 import json
@@ -152,6 +151,7 @@ def main(args: Config):
     if args.game == "sokoban":
         data_source = args.data_source if args.data_source else "boxoban"
         dataset = SokobanLMDataset(tokenizer,
+                                   args.model,
                                    data_source=data_source,
                                    chunk_size=args.chunk_size)
 
