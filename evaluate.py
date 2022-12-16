@@ -110,33 +110,6 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
                     append_images=frames[1:],
                     save_all=True,
                     duration=300, loop=0)
-
-                # acts = GRIDDLY_ACTION_MAPPING.keys()
-                    
-                # act_maps = list(permutations(acts))
-                # act_maps = [{k: i+1 for i, k in enumerate(am)} for am in act_maps]
-
-                # for k, act_map in enumerate(act_maps):
-                #     act_map_dir = os.path.join(lvl_render_dir, f"act_map{k}")
-                #     if not os.path.isdir(act_map_dir):
-                #         os.makedirs(act_map_dir)
-                #     ep_rew = 0
-                #     env.reset(level_string=sample)
-                #     im_name = os.path.join(lvl_render_dir, f"{j}.png")
-                #     save_render_im(env, im_name)
-                #     for act_dict in sol:
-                #         with open(os.path.join(act_map_dir, 'act_map.json'), 'w') as f:
-                #             json.dump(act_map, f)
-                #         j += 1
-                #         act_tpl = (act_dict['x'], act_dict['y'])
-                #         act_id = act_map[act_tpl]
-                #         obs, rew, done, info = env.step(act_id)
-                #         ep_rew += rew
-                #         im_name = os.path.join(act_map_dir, f"{j}.png")
-                #         save_render_im(env, im_name)
-                #     print(f"act map: {act_map}\ncumulative reward: {ep_rew}, done: {done}")
-                #     if ep_rew > 2:
-                #         breakpoint()
         env.close()
             
     return prop_playable, prop_novel
