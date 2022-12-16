@@ -138,6 +138,7 @@ def main(args: Config):
     if args.game == "sokoban":
         data_source = args.data_source if args.data_source else "boxoban"
         dataset = SokobanLMDataset(tokenizer,
+                                   model_name,
                                    data_source=data_source,
                                    chunk_size=args.chunk_size)
 

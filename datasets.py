@@ -12,6 +12,7 @@ from sokoban_solvers import EnhancedAStarAgent, State
 class SokobanLMDataset(Dataset):
     def __init__(self,
                  tokenizer: AutoTokenizer,
+                 model_name: str,
                  data_source="boxoban",
                  split="train",
                  chunk_size=128,
@@ -62,8 +63,8 @@ class SokobanLMDataset(Dataset):
             raise NotImplementedError
 
         # Tokenize processed levels (or load tokens from disk if available).
-        token_ids_path = os.path.join(cache_dir, f"{data_source}_{split}_all_token_ids.npy")
-        level_hashes_path = os.path.join(cache_dir, f"{data_source}_{split}_level_hashes.npy")
+        token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_all_token_ids.npy")
+        level_hashes_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_level_hashes.npy")
 
         if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
             print(f"Loading tokens from cache at {token_ids_path}...")
@@ -90,7 +91,6 @@ class SokobanLMDataset(Dataset):
 
                 self.level_hashes.add(level_hash)
 
-                # Add start and end tokens, and tokenize
                 if data_source == "boxoban-chars":
                     # Manual tokenization to ensure each tile token is separate
                     token_ids = []
@@ -102,7 +102,7 @@ class SokobanLMDataset(Dataset):
                     token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
                 else:
                     # Standard tokenization
-                    level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}" # TODO: should we use the tokenizer's special tokens instead?
+                    level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}"
                     token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
