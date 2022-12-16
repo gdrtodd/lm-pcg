@@ -1,6 +1,7 @@
 from itertools import groupby
 import os
 import shutil
+
 import torch
 from transformers import AutoModelForCausalLM
 
@@ -38,6 +39,10 @@ def load_train_state(output_dir):
     # Set output dir to most recent checkpoint
     prior_checkpoint_paths = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.startswith("checkpoint-")]
     prior_checkpoint_paths = sorted(prior_checkpoint_paths, key=lambda x: int(x.split("-")[-1]))
+    
+    if len(prior_checkpoint_paths) == 0:
+        raise Exception(f"No checkpoints found at {output_dir}. Exiting.")
+
     output_dir = prior_checkpoint_paths[-1]
 
     # Load
@@ -56,13 +61,19 @@ BOXOBAN_MAPPING = {
     '@': 'player'
 }
 
-BOXOBAN_INVERSE_MAPPING = {
-    'empty': ' ',
-    'wall': '#',
-    'box': '$',
-    'goal': '.',
-    'player': '@'
+BOXOBAN_INVERSE_MAPPING = {v: k for k, v in BOXOBAN_MAPPING.items()}
+
+GRIDDLY_INVERSE_MAPPING = {
+    'empty': '.',
+    'wall': 'w',
+    'box': 'b',
+    'goal': 'h',
+    'player': 'A',
 }
+
+BOXOBAN_TO_GRIDDLY_CHARS = {k: GRIDDLY_INVERSE_MAPPING[v] for k, v in BOXOBAN_MAPPING.items()}
+
+GRIDDLY_ACTION_MAPPING = {(-1, 0): 1, (0, -1): 2, (1, 0): 3, (0, 1): 4}
 
 def encode_boxoban_text(level):
     # Remove the first line of each level, which just contains the level number

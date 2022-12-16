@@ -1,14 +1,20 @@
 import os
+
+from griddly import GymWrapperFactory
+import gym
 import hydra
+from PIL import Image
 import torch
 from tqdm import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from conf.config import Config
 from datasets import SokobanLMDataset
-from utils import get_run_name, load_train_state
+from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name, load_train_state
 
-def evaluate(model, device, tokenizer, dataset, args, verbose=False):
+
+def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: SokobanLMDataset, args: Config, 
+        verbose=False, render_dir=None):
 
     # Map the model to the available device
     model.to(device)
@@ -34,7 +40,8 @@ def evaluate(model, device, tokenizer, dataset, args, verbose=False):
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
 
-    num_playable = sum([dataset.is_playable(sample) for sample in samples])
+    sols = [dataset.is_playable(sample) for sample in samples]
+    num_playable = sum([s != False for s in sols])
     num_novel = sum([dataset.is_novel(sample) for sample in samples])
 
     prop_playable = num_playable / len(samples)
@@ -54,7 +61,7 @@ def evaluate(model, device, tokenizer, dataset, args, verbose=False):
             print("_" * os.get_terminal_size().columns)
             print(sample)
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
-            print(f"Playable: {dataset.is_playable(sample, verbose=True)}")
+            print(f"Playable: {dataset.is_playable(sample, verbose=True) != False}")
             print(f"Novel: {dataset.is_novel(sample)}")
 
         print("_" * os.get_terminal_size().columns)
@@ -63,7 +70,77 @@ def evaluate(model, device, tokenizer, dataset, args, verbose=False):
 
     model.train()
 
+    # Render generated levels and animate solutions if applicable.
+    if render_dir:
+        if not os.path.isdir(render_dir):
+            os.makedirs(render_dir)
+        trans_table = {ord(k): v for k, v in BOXOBAN_TO_GRIDDLY_CHARS.items()}
+        wrapper = GymWrapperFactory()
+        wrapper.build_gym_from_yaml('sokoban', os.path.join('gdy_games', 'sokoban.yaml'))
+        env = gym.make('GDY-sokoban-v0')
+        for i, (sample, sol) in enumerate(zip(samples, sols)):
+            lvl_render_dir = os.path.join(render_dir, f"lvl_{i}")
+            if not os.path.isdir(lvl_render_dir):
+                os.makedirs(lvl_render_dir)
+            sample = sample.translate(trans_table)
+            j = 0
+            if sol != False:
+                frames = []
+                ep_rew = 0
+                env.reset(level_string=sample)
+                im_name = os.path.join(lvl_render_dir, f"{j}.png")
+                im = env.render(mode='rgb_array')
+                im = Image.fromarray(im)
+                im.save(im_name)
+                frames.append(im)
+                for act_dict in sol:
+                    j += 1
+                    act_tpl = (act_dict['x'], act_dict['y'])
+                    act_id = GRIDDLY_ACTION_MAPPING[act_tpl]
+                    obs, rew, done, info = env.step(act_id)
+                    ep_rew += rew
+                    im_name = os.path.join(lvl_render_dir, f"{j}.png")
+                    im = env.render(mode='rgb_array')
+                    im = Image.fromarray(im)
+                    im.save(im_name)
+                    frames.append(im)
+                
+                # Save gif
+                frames[0].save(os.path.join(render_dir, f"lvl_{i}.gif"), format='GIF',
+                    append_images=frames[1:],
+                    save_all=True,
+                    duration=300, loop=0)
+
+                # acts = GRIDDLY_ACTION_MAPPING.keys()
+                    
+                # act_maps = list(permutations(acts))
+                # act_maps = [{k: i+1 for i, k in enumerate(am)} for am in act_maps]
+
+                # for k, act_map in enumerate(act_maps):
+                #     act_map_dir = os.path.join(lvl_render_dir, f"act_map{k}")
+                #     if not os.path.isdir(act_map_dir):
+                #         os.makedirs(act_map_dir)
+                #     ep_rew = 0
+                #     env.reset(level_string=sample)
+                #     im_name = os.path.join(lvl_render_dir, f"{j}.png")
+                #     save_render_im(env, im_name)
+                #     for act_dict in sol:
+                #         with open(os.path.join(act_map_dir, 'act_map.json'), 'w') as f:
+                #             json.dump(act_map, f)
+                #         j += 1
+                #         act_tpl = (act_dict['x'], act_dict['y'])
+                #         act_id = act_map[act_tpl]
+                #         obs, rew, done, info = env.step(act_id)
+                #         ep_rew += rew
+                #         im_name = os.path.join(act_map_dir, f"{j}.png")
+                #         save_render_im(env, im_name)
+                #     print(f"act map: {act_map}\ncumulative reward: {ep_rew}, done: {done}")
+                #     if ep_rew > 2:
+                #         breakpoint()
+        env.close()
+            
     return prop_playable, prop_novel
+
 
 @hydra.main(config_path="conf", config_name="config")
 def main(args: Config):
@@ -96,7 +173,9 @@ def main(args: Config):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    evaluate(model, device, tokenizer, dataset, args, verbose=True)
+    render_dir = os.path.join(output_dir, 'renders')
+
+    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=render_dir)
 
 if __name__ == "__main__":
     main()

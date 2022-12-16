@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 from tqdm import tqdm
 
-from utils import encode_boxoban_text, decode_boxoban_text
+from utils import BOXOBAN_MAPPING, encode_boxoban_text, decode_boxoban_text
 from sokoban_solvers import EnhancedAStarAgent, State
 
 class SokobanLMDataset(Dataset):
@@ -73,7 +73,7 @@ class SokobanLMDataset(Dataset):
         else:
             # Optionally ensure each tile-character is tokenized individually
             if data_source == "boxoban-chars":
-                tile_chars = ["#", "-", ".", "$", "@", "\n", tokenizer.bos_token, tokenizer.eos_token]
+                tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
                 tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
 
             all_token_ids = []
@@ -140,12 +140,13 @@ class SokobanLMDataset(Dataset):
 
     def is_playable(self, level, verbose=False):
         '''
-        Returns whether the given level is playable by checking a variety of conditions:
+        Determines whether the given level is playable by checking a variety of conditions:
           1. the level is rectangular (i.e. every line is the same length)
           2. the level contains only the following characters: "\n", "#", " ", "-", "@", "$", "."
           3. the level contains exactly one player
           4. the level contains the same number of boxes and goals (and at least one of each)
           5. the level can be solved by an ASTAR agent
+        If the level is playable, return the solution (return False otherwise).
         '''
 
         # Check if the level is rectangular
@@ -179,7 +180,7 @@ class SokobanLMDataset(Dataset):
         elif verbose:
             print(f"++Level can be solved in {len(solution)} moves++")
 
-        return True
+        return solution
 
     def __getitem__(self, idx):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)

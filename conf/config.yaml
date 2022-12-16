@@ -46,8 +46,13 @@ hydra:
   sweeper:
     params:
       # We will sweep over these parameters when the `--multirun` flag is used.
-      model: gpt2, codeparrot, java-gpt2, incoder-1B, incoder-6B 
+
+      # model: gpt2, codeparrot, java-gpt2, incoder-1B, incoder-6B 
+      model: gpt2, java-gpt2
+
       data_source: null, boxoban-chars, boxoban-text
+      # data_source: boxoboan-chars
+
       # chunk_size: 128, 256, 512
 
   # SLURM-specific arguments
