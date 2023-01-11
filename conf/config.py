@@ -11,6 +11,7 @@ class Config:
     # Dataset
     game: str = "sokoban"
     data_source: Optional[str] = None
+    annotation_level: Optional[str] = None
     chunk_size: int = 128
 
     # Model

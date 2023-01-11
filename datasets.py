@@ -10,13 +10,31 @@ from utils import BOXOBAN_MAPPING, encode_boxoban_text, decode_boxoban_text
 from sokoban_solvers import EnhancedAStarAgent, State
 
 class SokobanLMDataset(Dataset):
+    '''
+    Dataset for Sokobaln levels for use with a language model
+
+    Args:
+        -tokenizer: Huggingface tokenizer for a specific language model
+        -model_name: Name of the language model
+        -data_source: Which type dataset to use. Current options are "boxoban" (raw levels), "boxoban-chars"
+            (tokenizing each character separately), and "boxoban-text" (representing levels in natural language)
+        -annotation: What style of annotation to use. Current options are None (no annotation), "partial" 
+            (width, length, # of boxes, % whitespace), and "full" (partial annotation + solution length)
+        -split Which split of the dataset to use (if available)
+        -chunk_size: Number of tokens per item in the datatset
+        -cache_dir: Path to dataset cache files
+    '''
     def __init__(self,
                  tokenizer: AutoTokenizer,
                  model_name: str,
                  data_source="boxoban",
+                 annotation_level=None,
                  split="train",
                  chunk_size=128,
                  cache_dir="./caches"):
+
+        assert data_source in ["boxoban", "boxoban-chars", "boxoban-text"], "Data source must be one of [boxoban, boxoban-chars, boxoban-text]"
+        assert annotation_level in [None, "partial", "full"], "Annotation must be one of [None, partial, full]"
 
         self.data_source = data_source
         self.split = split
@@ -65,8 +83,9 @@ class SokobanLMDataset(Dataset):
         # Tokenize processed levels (or load tokens from disk if available).
         token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_all_token_ids.npy")
         level_hashes_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_level_hashes.npy")
+        annotations_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_{annotation_level}_annotations.npy")
 
-        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
+        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path) and (os.path.isfile(annotations_path) or annotation_level is None):
             print(f"Loading tokens from cache at {token_ids_path}...")
             self.all_token_ids = np.load(token_ids_path)
             self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
@@ -100,9 +119,16 @@ class SokobanLMDataset(Dataset):
                     token_ids = [tile_encodings[tokenizer.bos_token]] + token_ids + [tile_encodings[tokenizer.eos_token]]
                     # Pad
                     token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
+
                 else:
                     # Standard tokenization
-                    level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}"
+                    if annotation_level is not None:
+                        annotation = self._annotate_level(level, include_sol_len=(annotation_level == "full")) + "\n\n"
+                        print(annotation)
+                    else:
+                        annotation = ""
+
+                    level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
                     token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
@@ -115,6 +141,34 @@ class SokobanLMDataset(Dataset):
 
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+
+    def _annotate_level(self, level, include_sol_len=False):
+        '''
+        Returns a linguistic annotation of the level containing:
+        -width
+        -height
+        -number of targets / boxes
+        -proportion of empty space
+        -(optional) solution length
+        '''
+
+        width = len(level.split("\n")[0])
+        height = len(level.split("\n"))
+        num_targets = level.count("$") # oddly, this seems to be 4 for every single level in the dataset!
+        prop_empty = level.count("-") / (width * height)
+
+        annotation = f"Width: {width}\nHeight: {height}\nNumber of targets: {num_targets}\nProportion empty: {prop_empty}"
+
+        if include_sol_len:
+            level_state = State().stringInitialize(level.split("\n"))
+            solution, node, _ = self.solver.getSolution(level_state, maxIterations=50000)
+            if node.checkWin():
+                annotation += f"\nSolution length: {len(solution)}"
+            else:
+                annotation += f"\nSolution length: [Unknown]"
+
+        return annotation
+
 
     def decode(self, token_ids):
         '''

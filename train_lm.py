@@ -153,6 +153,7 @@ def main(args: Config):
         dataset = SokobanLMDataset(tokenizer,
                                    args.model,
                                    data_source=data_source,
+                                   annotation_level=args.annotation_level,
                                    chunk_size=args.chunk_size)
 
     else:
