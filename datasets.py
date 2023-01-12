@@ -10,6 +10,8 @@ from tqdm import tqdm
 from utils import BOXOBAN_MAPPING, encode_boxoban_text, decode_boxoban_text
 from sokoban_solvers import EnhancedAStarAgent, State
 
+VALID_DATA_SOURCES = ["boxoban", "boxoban-chars", "boxoban-text", "microban"]
+
 class SokobanLMDataset(Dataset):
     '''
     Dataset for Sokobaln levels for use with a language model
@@ -34,7 +36,7 @@ class SokobanLMDataset(Dataset):
                  chunk_size=128,
                  cache_dir="./caches"):
 
-        assert data_source in ["boxoban", "boxoban-chars", "boxoban-text"], "Data source must be one of [boxoban, boxoban-chars, boxoban-text]"
+        assert data_source in VALID_DATA_SOURCES, f"Data source must be one of {VALID_DATA_SOURCES}"
         assert annotation_level in [None, "partial", "full"], "Annotation must be one of [None, partial, full]"
 
         self.data_source = data_source
@@ -77,6 +79,36 @@ class SokobanLMDataset(Dataset):
                     raw_levels = f.read().split("; ")
 
                     all_levels += [encode_boxoban_text(level) for level in raw_levels if level != ""]
+
+        elif data_source == "microban":
+            data_dir = "./data/microban"
+            level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
+            for file in level_files:
+                with open(file, "r") as f:
+
+                    # Split into individual levels
+                    raw_levels = f.read().split("; ")
+
+                    # Remove the first line of each level, which just contains the level number
+                    raw_levels = [level[level.find("\n")+1:] for level in raw_levels if level != ""]
+
+                    for raw in raw_levels:
+                        max_width = max([len(row) for row in raw.split("\n")])
+
+                        # Pad each row to the same length and replace leading spaces
+                        lines = []
+                        for row in raw.split("\n"):
+                            if row == "": continue
+                            num_leading_spaces = len(row) - len(row.lstrip())
+                            row = ("#" * num_leading_spaces) + row.strip() + ("#" * (max_width - len(row)))
+                            lines.append(row)
+
+                        # Fill in gaps in to top and bottom rows
+                        lines[0] = lines[0].replace(" ", "#")
+                        lines[-1] = lines[-1].replace(" ", "#")
+
+                        processed_level = "\n".join(lines).replace(" ", "-")
+                        all_levels.append(processed_level)
 
         else:
             raise NotImplementedError
@@ -134,6 +166,12 @@ class SokobanLMDataset(Dataset):
 
                 else:
                     # Standard tokenization
+                    if annotation_level is not None:
+                        annotation = self._annotate_level(level, include_sol_len=(annotation_level == "full")) + "\n\n"
+                        print(annotation)
+                    else:
+                        annotation = ""
+
                     level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
                     token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
@@ -148,7 +186,7 @@ class SokobanLMDataset(Dataset):
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
 
-    def _annotate_level(self, level, include_sol_len=True):
+    def _annotate_level(self, level, include_sol_len=False):
         '''
         Returns a linguistic annotation of the level containing:
         -width
