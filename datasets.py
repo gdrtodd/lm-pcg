@@ -114,7 +114,7 @@ class SokobanLMDataset(Dataset):
             raise NotImplementedError
 
         # Tokenize processed levels (or load tokens from disk if available).
-        token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_all_token_ids.npy")
+        token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_chunksize_{chunk_size}_all_token_ids.npy")
         level_hashes_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_level_hashes.npy")
         annotations_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_{annotation_level}_annotations.npy")
 
