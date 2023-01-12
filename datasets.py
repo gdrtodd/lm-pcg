@@ -1,5 +1,6 @@
 import hashlib
 import os
+import multiprocessing as mp
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -61,7 +62,7 @@ class SokobanLMDataset(Dataset):
                     raw_levels = f.read().split("; ")
 
                     # Remove the first line of each level, which just contains the level number, and replace spaces with dashes
-                    raw_levels = [level[level.find("\n")+1:].strip().replace(" ", "-") for level in raw_levels]
+                    raw_levels = [level[level.find("\n")+1:].strip().replace(" ", "-") for level in raw_levels if level != ""]
 
                     all_levels += raw_levels
 
@@ -75,7 +76,7 @@ class SokobanLMDataset(Dataset):
                     # Split into individual levels
                     raw_levels = f.read().split("; ")
 
-                    all_levels += [encode_boxoban_text(level) for level in raw_levels]
+                    all_levels += [encode_boxoban_text(level) for level in raw_levels if level != ""]
 
         else:
             raise NotImplementedError
@@ -98,10 +99,21 @@ class SokobanLMDataset(Dataset):
 
             all_token_ids = []
 
+            # if annotation_level is not None:
+            #     with mp.Pool(16) as pool:
+            #         all_annotations = list(tqdm(pool.imap(self._annotate_level, all_levels[:100]), total=len(all_levels[:100]),
+            #                                     desc="Annotating levels"))
+            #     from tqdm.contrib.concurrent import process_map
+            #     all_annotations = process_map(self._annotate_level, all_levels, chunksize=1000, max_workers=1,
+            #                                   desc="Annotating levels")
+
+            # for ann in all_annotations:
+            #     print("=" * 80)
+            #     print(ann)
+
+            # exit()
+
             for level in tqdm(all_levels, desc="Tokenizing levels"):
-                # Skip empty level
-                if level == '':
-                    continue
 
                 # We use the MD5 hash of the level as a unique identifier which is stable across runs
                 level_hash = self._hash_level(level)
@@ -122,12 +134,6 @@ class SokobanLMDataset(Dataset):
 
                 else:
                     # Standard tokenization
-                    if annotation_level is not None:
-                        annotation = self._annotate_level(level, include_sol_len=(annotation_level == "full")) + "\n\n"
-                        print(annotation)
-                    else:
-                        annotation = ""
-
                     level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
                     token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
@@ -142,7 +148,7 @@ class SokobanLMDataset(Dataset):
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
 
-    def _annotate_level(self, level, include_sol_len=False):
+    def _annotate_level(self, level, include_sol_len=True):
         '''
         Returns a linguistic annotation of the level containing:
         -width
