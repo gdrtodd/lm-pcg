@@ -63,6 +63,10 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 loss = model(token_ids, labels=labels)[0]
 
+                if torch.isnan(loss):
+                    print(f"NaN loss detected in at global step: {global_step}, skipping")
+                    continue
+
                 # Clear some memory before the expensive gradient computation
                 del token_ids
                 del labels
