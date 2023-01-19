@@ -1,5 +1,6 @@
 from itertools import groupby
 import os
+import numpy as np
 import shutil
 
 import torch
@@ -106,28 +107,87 @@ def decode_boxoban_text(text):
 
     return level
 
+def generate_l_mazes(width, height):
+    '''
+    Generates the set of all "L Mazes" of a given width and height. We construct an L Maze by choosing a start
+    and end point at least one square away from the edge and then connecting them with a path that has at most
+    one turn. For example:
+
+    ##########
+    #      ###
+    ###### ###
+    ##########
+    ##########
+    '''
+
+    def to_string(grid):
+        return "\n".join(["".join(["#" if pos == 1 else "-" for pos in row]) for row in grid])
+
+    def l_path(start, end):
+        path = []
+
+        cur_pos = start
+
+        # Always gives the path that changes y before x
+        while cur_pos[1] != end[1]:
+            cur_pos = (cur_pos[0], cur_pos[1] + (1 if cur_pos[1] < end[1] else -1))
+            path.append(cur_pos)
+
+        while cur_pos[0] != end[0]:
+            cur_pos = (cur_pos[0] + (1 if cur_pos[0] < end[0] else -1), cur_pos[1])
+            path.append(cur_pos)
+
+        return path
+
+
+    l_mazes = []
+
+    interior_positions = [(x, y) for x in range(1, width-1) for y in range(1, height-1)]
+
+    for start in interior_positions:
+        for end in interior_positions:
+            if start == end:
+                continue
+
+            grid = np.ones((width, height), dtype=np.int8)
+            path = l_path(start, end)
+
+            grid[start] = 0
+            for pos in path:
+                grid[pos] = 0
+
+            annotation = f"Width: {width}\nHeight: {height}\nPath length: {len(path)}\n"
+            l_mazes.append(annotation + to_string(grid))
+
+    filename = os.path.join("data", "l-mazes", f"l_mazes_{width}x{height}.txt")
+    with open(filename, "w") as f:
+        f.write("\n\n".join(l_mazes))
+
+    print(f"Generated {len(l_mazes)} L Mazes of size {width}x{height} and saved to {filename}") 
+
 if __name__ == "__main__":
-    level = """
-##########
-### ######
-###@ #####
-### ######
-###$ #####
-### .#####
-###  #####
-# .$ $ ###
-#. $ .  ##
-##########
-    """
+    generate_l_mazes(10, 10)
+#     level = """
+# ##########
+# ### ######
+# ###@ #####
+# ### ######
+# ###$ #####
+# ### .#####
+# ###  #####
+# # .$ $ ###
+# #. $ .  ##
+# ##########
+#     """
 
-    from sokoban_solvers import EnhancedAStarAgent, State
+#     from sokoban_solvers import EnhancedAStarAgent, State
 
-    start_state = State().stringInitialize(level.split("\n"))
+#     start_state = State().stringInitialize(level.split("\n"))
 
-    solver = EnhancedAStarAgent()
-    sol, node, iters = solver.getSolution(start_state)
-    print(sol)
-    print(node.checkWin())
+#     solver = EnhancedAStarAgent()
+#     sol, node, iters = solver.getSolution(start_state)
+#     print(sol)
+#     print(node.checkWin())
 
 #     output = """10 wall
 # 1 wall, 2 empty, 7 wall
