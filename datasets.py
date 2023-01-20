@@ -287,7 +287,61 @@ class SokobanLMDataset(Dataset):
     def __len__(self):
         return len(self.all_token_ids) // self.chunk_size
 
-if __name__ == "__main__":
-    d = SokobanLMDataset(data_source="boxoban-text")
-    # print(d[10])
-    # print(d.decode_ids(d[10]))
+
+class LMazeLMDataset(Dataset):
+    def __init__(self,
+                 tokenizer: AutoTokenizer,
+                 model_name: str,
+                 split="train",
+                 chunk_size=128,
+                 cache_dir="./caches"):
+
+        self.split = split
+        self.chunk_size = chunk_size
+
+        self.tokenizer = tokenizer
+        # self.pad_token_id = self.tokenizer.pad_token_id
+
+        data_dir = os.path.join("./data", "l-mazes")
+
+        all_levels = []
+
+        level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
+        for file in level_files:
+            with open(file, "r") as f:
+
+                # Split into individual levels
+                all_levels += f.read().split("\n\n")
+
+        # Tokenize processed levels (or load tokens from disk if available).
+        token_ids_path = os.path.join(cache_dir, f"{model_name}_l_mazes_{split}_all_token_ids.npy")
+
+        if os.path.isfile(token_ids_path):
+            print(f"Loading tokens from cache at {token_ids_path}...")
+            self.all_token_ids = np.load(token_ids_path)
+        else:
+
+            all_token_ids = []
+
+            for level in tqdm(all_levels, desc="Tokenizing L mazes"):
+                # Skip empty level
+                if level == '':
+                    continue
+
+                # Tokenize level. TODO: might want to add different encoding schemes here (like with Sokoban above)
+                level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}"
+                token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
+
+                all_token_ids += token_ids
+
+            # Save token ids and hashes to disk
+            np.save(token_ids_path, all_token_ids)
+
+            self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
+
+    def __getitem__(self, idx):
+        start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
+        return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
+
+    def __len__(self):
+        return len(self.all_token_ids) // self.chunk_size
