@@ -1,0 +1,719 @@
+Width: 7
+Height: 4
+Path length: 1
+#######
+#-#####
+#-#####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#--####
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#--####
+##-####
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#---###
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#---###
+###-###
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#----##
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#----##
+####-##
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#-----#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 5
+#######
+#-----#
+#####-#
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#-#####
+#-#####
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+##-####
+#--####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+#--####
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+###-###
+#---###
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#######
+#---###
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+####-##
+#----##
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#######
+#----##
+#######
+
+Width: 7
+Height: 4
+Path length: 5
+#######
+#####-#
+#-----#
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#######
+#-----#
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#--####
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#--####
+#-#####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+##-####
+##-####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+##--###
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+##--###
+###-###
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+##---##
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+##---##
+####-##
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+##----#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+##----#
+#####-#
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#-#####
+#--####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+#--####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+##-####
+##-####
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+###-###
+##--###
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+##--###
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+####-##
+##---##
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#######
+##---##
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#####-#
+##----#
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#######
+##----#
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#---###
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#---###
+#-#####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+##--###
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+##--###
+##-####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+###-###
+###-###
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+###--##
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+###--##
+####-##
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+###---#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+###---#
+#####-#
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#-#####
+#---###
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#######
+#---###
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+##-####
+##--###
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+##--###
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+###-###
+###-###
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+####-##
+###--##
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+###--##
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#####-#
+###---#
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#######
+###---#
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#----##
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#----##
+#-#####
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+##---##
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+##---##
+##-####
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+###--##
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+###--##
+###-###
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+####-##
+####-##
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+####--#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+####--#
+#####-#
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#-#####
+#----##
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#######
+#----##
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+##-####
+##---##
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#######
+##---##
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+###-###
+###--##
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+###--##
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+####-##
+####-##
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#####-#
+####--#
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+####--#
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#-----#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 5
+#######
+#-----#
+#-#####
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+##----#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+##----#
+##-####
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+###---#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+###---#
+###-###
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+####--#
+#######
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+####--#
+####-##
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#####-#
+#####-#
+#######
+
+Width: 7
+Height: 4
+Path length: 5
+#######
+#-#####
+#-----#
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+#######
+#-----#
+#######
+
+Width: 7
+Height: 4
+Path length: 4
+#######
+##-####
+##----#
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+#######
+##----#
+#######
+
+Width: 7
+Height: 4
+Path length: 3
+#######
+###-###
+###---#
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+#######
+###---#
+#######
+
+Width: 7
+Height: 4
+Path length: 2
+#######
+####-##
+####--#
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#######
+####--#
+#######
+
+Width: 7
+Height: 4
+Path length: 1
+#######
+#####-#
+#####-#
+#######

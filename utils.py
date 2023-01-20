@@ -42,7 +42,7 @@ def load_train_state(output_dir):
     prior_checkpoint_paths = sorted(prior_checkpoint_paths, key=lambda x: int(x.split("-")[-1]))
     
     if len(prior_checkpoint_paths) == 0:
-        raise Exception(f"No checkpoints found at {output_dir}. Exiting.")
+        raise FileNotFoundError(f"No checkpoints found at {output_dir}. Exiting.")
 
     output_dir = prior_checkpoint_paths[-1]
 
@@ -142,14 +142,14 @@ def generate_l_mazes(width, height):
 
     l_mazes = []
 
-    interior_positions = [(x, y) for x in range(1, width-1) for y in range(1, height-1)]
+    interior_positions = [(y, x) for x in range(1, width-1) for y in range(1, height-1)]
 
     for start in interior_positions:
         for end in interior_positions:
             if start == end:
                 continue
 
-            grid = np.ones((width, height), dtype=np.int8)
+            grid = np.ones((height, width), dtype=np.int8)
             path = l_path(start, end)
 
             grid[start] = 0
@@ -159,14 +159,16 @@ def generate_l_mazes(width, height):
             annotation = f"Width: {width}\nHeight: {height}\nPath length: {len(path)}\n"
             l_mazes.append(annotation + to_string(grid))
 
-    filename = os.path.join("data", "l-mazes", f"l_mazes_{width}x{height}.txt")
+    filename = os.path.join("data", "l-mazes", f"l_mazes_{height}x{width}.txt")
     with open(filename, "w") as f:
         f.write("\n\n".join(l_mazes))
 
-    print(f"Generated {len(l_mazes)} L Mazes of size {width}x{height} and saved to {filename}") 
+    print(f"Generated {len(l_mazes)} L Mazes of size {height}x{width} and saved to {filename}") 
 
 if __name__ == "__main__":
-    generate_l_mazes(10, 10)
+    for width in range(4, 12):
+        for height in range(4, 12):
+            generate_l_mazes(width, height)
 #     level = """
 # ##########
 # ### ######

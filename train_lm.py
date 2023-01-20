@@ -12,7 +12,7 @@ from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from datasets import SokobanLMDataset
+from datasets import SokobanLMDataset, LMazeLMDataset
 from evaluate import evaluate
 from utils import get_run_name, save_train_state, load_train_state
 
@@ -80,7 +80,8 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                 progress_bar.set_postfix({"loss": loss.item()})
 
                 if global_step%args.gen_freq == 0:
-                    inputs = tokenizer(tokenizer.bos_token + args.gen_context, return_tensors="pt").input_ids
+                    context = "Width: 10\nHeight: 8\nPath length: 7"
+                    inputs = tokenizer(tokenizer.bos_token + context, return_tensors="pt").input_ids
                     inputs = inputs.to(device)
 
                     outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
@@ -154,6 +155,11 @@ def main(args: Config):
                                    args.model,
                                    data_source=data_source,
                                    chunk_size=args.chunk_size)
+
+    elif args.game == "l_maze":
+        dataset = LMazeLMDataset(tokenizer,
+                                 args.model,
+                                 chunk_size=args.chunk_size)
 
     else:
         raise NotImplementedError
