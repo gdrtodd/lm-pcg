@@ -24,7 +24,7 @@ def main(overwrite: bool):
 
 
     # Split into train/val according to path lengths, save files containing 1000 mazes each
-    holdout_pls = LMazeLMDataset.holdout_pls
+    holdout_pls = LMazeLMDataset.holdout_path_lens
 
     train = []
     val = []
