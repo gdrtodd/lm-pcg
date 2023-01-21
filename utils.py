@@ -141,6 +141,7 @@ def generate_l_mazes(width, height):
 
 
     l_mazes = []
+    path_lens = []
 
     interior_positions = [(y, x) for x in range(1, width-1) for y in range(1, height-1)]
 
@@ -157,18 +158,13 @@ def generate_l_mazes(width, height):
                 grid[pos] = 0
 
             annotation = f"Width: {width}\nHeight: {height}\nPath length: {len(path)}\n"
+            path_lens.append(len(path))
             l_mazes.append(annotation + to_string(grid))
 
-    filename = os.path.join("data", "l-mazes", f"l_mazes_{height}x{width}.txt")
-    with open(filename, "w") as f:
-        f.write("\n\n".join(l_mazes))
+    return l_mazes, path_lens
 
-    print(f"Generated {len(l_mazes)} L Mazes of size {height}x{width} and saved to {filename}") 
 
-if __name__ == "__main__":
-    for width in range(4, 12):
-        for height in range(4, 12):
-            generate_l_mazes(width, height)
+
 #     level = """
 # ##########
 # ### ######

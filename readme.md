@@ -4,6 +4,7 @@ bash setup.sh
 ```
 
 ## Training
+To train a single model locally:
 ```
 python train_lm.py
 ```
@@ -16,9 +17,20 @@ The config files are located in `config/`. Settings can be changed in `config/co
 python train_lm.py batch_size=32
 ```
 
+## Games
+
+- `l_maze`
+- `sokoban`
+
+## Datasets
+
+- `l_maze`
+- `boxoban-chars`
+- `boxoban-text`
+
 ## TODO:
 
-- try a character-based model like k9
-- force per-character tokenization (by adding special characters between ascii symbols or similar)
-- re-write level to replace each token with what it represents (e.g. "wall, empty, empty, wall, player, wall"). (Would be great if we could also guarantee one token per tile to keep positions consistent.)
-- semantically parse each row of the level as, e.g., "3 walls, 1 empty space, 1 player, 1 wall"
+- try a character-based model like k9?
+<!-- - force per-character tokenization (by adding special characters between ascii symbols or similar) -->
+<!-- - re-write level to replace each token with what it represents (e.g. "wall, empty, empty, wall, player, wall"). (Would be great if we could also guarantee one token per tile to keep positions consistent.) -->
+<!-- - semantically parse each row of the level as, e.g., "3 walls, 1 empty space, 1 player, 1 wall" -->
