@@ -116,7 +116,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
                     duration=300, loop=0)
         env.close()
             
-    return prop_playable, prop_novel
+    return prop_accurate, prop_playable, prop_novel
 
 
 @hydra.main(config_path="conf", config_name="config")
