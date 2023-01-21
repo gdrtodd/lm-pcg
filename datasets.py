@@ -313,7 +313,7 @@ class SokobanLMDataset(GameDataset):
 class LMazeLMDataset(GameDataset):
 
     holdout_path_lens = {7, 15}
-    allowed_chars = "#-"
+    allowed_chars = "\n#-"
 
     def __init__(self,
                  tokenizer: AutoTokenizer,
@@ -346,7 +346,7 @@ class LMazeLMDataset(GameDataset):
         if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
             print(f"Loading tokens from cache at {token_ids_path}...")
             self.all_token_ids = np.load(token_ids_path)
-            self.level_hashes = set(np.load(level_hashes_path))
+            self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
         else:
 
             all_token_ids = []
@@ -370,6 +370,7 @@ class LMazeLMDataset(GameDataset):
 
             # Save token ids and hashes to disk
             np.save(token_ids_path, all_token_ids)
+            np.save(level_hashes_path, self.level_hashes)
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
@@ -382,17 +383,19 @@ class LMazeLMDataset(GameDataset):
           4. no empty tile is on the border of the maze
         '''
         # Check if the level is rectangular
-        line_lengths = [len(line) for line in level.split("\n")]
+        n_descriptor_lines = 3  # width, height, path-length
+        level_map = "\n".join(level.split("\n")[n_descriptor_lines:])
+        line_lengths = [len(line) for line in level_map.split("\n")]
         if len(set(line_lengths)) != 1:
             return False
 
         # Check if the level contains only the allowed characters
-        if not set(level).issubset(self.allowed_chars):
+        if not set(level_map).issubset(self.allowed_chars):
             return False
 
         # Check if the all empty tiles (i.e. "-") are connected
         # Turn into binary array
-        level = np.array([[1 if c == "#" else 0 for c in line] for line in level.split("\n")])
+        level = np.array([[1 if c == "#" else 0 for c in line] for line in level_map.split("\n")])
         # Find all empty tiles
         empty_tiles = np.argwhere(level == 0)
 
