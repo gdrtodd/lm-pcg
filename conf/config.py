@@ -24,7 +24,7 @@ class Config:
     exp_name: str = ""
     overwrite: bool = False  # Overwrite the output directory if it exists (otherwise, attempt to load train state)
     seed: int = 42
-    batch_size: int = 1
+    batch_size: int = 16
     epochs: int = 20
     save_freq: int = 1000
     eval_freq: int = 1000

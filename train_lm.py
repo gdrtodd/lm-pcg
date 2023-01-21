@@ -124,7 +124,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     if not args.no_log:
         save_train_state(model, optimizer, global_step, output_dir)
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(version_base="1.2.0", config_path="conf", config_name="config")
 def main(args: Config):
     run_name = get_run_name(args)
 

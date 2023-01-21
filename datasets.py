@@ -9,7 +9,36 @@ from tqdm import tqdm
 from utils import BOXOBAN_MAPPING, encode_boxoban_text, decode_boxoban_text
 from sokoban_solvers import EnhancedAStarAgent, State
 
-class SokobanLMDataset(Dataset):
+
+class GameDataset(Dataset):
+    def __init__(self):
+        self.all_levels = []
+        self.level_hashes = set()
+
+    def _hash_level(self, level):
+        return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+
+    def decode(self, token_ids):
+        '''
+        Decode an array of token IDs back into text.
+        '''
+        text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
+
+        return text
+
+    def is_novel(self, level):
+        '''
+        Returns whether the given level is novel by checking if its hashed value is in the set of
+        level hashes.
+        '''
+        level_hash = self._hash_level(level)
+        return level_hash not in self.level_hashes
+
+
+    def is_playable(self, level):
+        raise NotImplementedError
+
+class SokobanLMDataset(GameDataset):
     def __init__(self,
                  tokenizer: AutoTokenizer,
                  model_name: str,
@@ -17,6 +46,8 @@ class SokobanLMDataset(Dataset):
                  split="train",
                  chunk_size=128,
                  cache_dir="./caches"):
+
+        super().__init__()
 
         self.data_source = data_source
         self.split = split
@@ -26,10 +57,6 @@ class SokobanLMDataset(Dataset):
         self.pad_token_id = self.tokenizer.pad_token_id
 
         self.solver = EnhancedAStarAgent()
-
-        self.level_hashes = set()
-
-        all_levels = []
 
         # Pre-process levels.
         if data_source in ["boxoban", "boxoban-chars"]:
@@ -113,9 +140,6 @@ class SokobanLMDataset(Dataset):
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
-    def _hash_level(self, level):
-        return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
-
     def decode(self, token_ids):
         '''
         Decode an array of token IDs back into text. Depending on the data source, this may also apply
@@ -129,14 +153,6 @@ class SokobanLMDataset(Dataset):
         text = text.replace("-", " ")
 
         return text.strip()
-
-    def is_novel(self, level):
-        '''
-        Returns whether the given level is novel by checking if its hashed value is in the set of
-        level hashes.
-        '''
-        level_hash = self._hash_level(level)
-        return level_hash not in self.level_hashes
 
     def is_playable(self, level, verbose=False):
         '''
@@ -190,7 +206,11 @@ class SokobanLMDataset(Dataset):
         return len(self.all_token_ids) // self.chunk_size
 
 
-class LMazeLMDataset(Dataset):
+class LMazeLMDataset(GameDataset):
+
+    holdout_path_lens = {7, 15}
+    allowed_chars = "#-"
+
     def __init__(self,
                  tokenizer: AutoTokenizer,
                  model_name: str,
@@ -198,15 +218,15 @@ class LMazeLMDataset(Dataset):
                  chunk_size=128,
                  cache_dir="./caches"):
 
+        super().__init__()
+
         self.split = split
         self.chunk_size = chunk_size
 
         self.tokenizer = tokenizer
         # self.pad_token_id = self.tokenizer.pad_token_id
 
-        data_dir = os.path.join("./data", "l-mazes")
-
-        all_levels = []
+        data_dir = os.path.join("./data", "l-mazes", split)
 
         level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
         for file in level_files:
@@ -217,10 +237,12 @@ class LMazeLMDataset(Dataset):
 
         # Tokenize processed levels (or load tokens from disk if available).
         token_ids_path = os.path.join(cache_dir, f"{model_name}_l_mazes_{split}_all_token_ids.npy")
+        level_hashes_path = os.path.join(cache_dir, f"{model_name}_l_mazes_{split}_level_hashes.npy")
 
-        if os.path.isfile(token_ids_path):
+        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
             print(f"Loading tokens from cache at {token_ids_path}...")
             self.all_token_ids = np.load(token_ids_path)
+            self.level_hashes = set(np.load(level_hashes_path))
         else:
 
             all_token_ids = []
@@ -229,6 +251,12 @@ class LMazeLMDataset(Dataset):
                 # Skip empty level
                 if level == '':
                     continue
+
+                # We use the MD5 hash of the level as a unique identifier which is stable across runs
+                level_hash = self._hash_level(level)
+                # We can be sure of this because of the way we generate l-mazes
+                assert level_hash not in self.level_hashes
+                self.level_hashes.add(level_hash)
 
                 # Tokenize level. TODO: might want to add different encoding schemes here (like with Sokoban above)
                 level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}"
@@ -240,6 +268,40 @@ class LMazeLMDataset(Dataset):
             np.save(token_ids_path, all_token_ids)
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
+
+    def is_playable(self, level):
+        '''
+        Determines whether the given level is playable by checking a variety of conditions:
+          1. the level is rectangular (i.e. every line is the same length)
+          2. the level only contains valid characters
+          3. all empty tiles are connected
+          4. no empty tile is on the border of the maze
+        '''
+        # Check if the level is rectangular
+        line_lengths = [len(line) for line in level.split("\n")]
+        if len(set(line_lengths)) != 1:
+            return False
+
+        # Check if the level contains only the allowed characters
+        if not set(level).issubset(self.allowed_chars):
+            return False
+
+        # Check if the all empty tiles (i.e. "-") are connected
+        # Turn into binary array
+        level = np.array([[1 if c == "#" else 0 for c in line] for line in level.split("\n")])
+        # Find all empty tiles
+        empty_tiles = np.argwhere(level == 0)
+
+        for x, y in empty_tiles:
+            # Check if empty tile is on the border of the maze
+            if x == 0 or x == level.shape[0]-1 or y == 0 or y == level.shape[1]-1:
+                return False
+
+            # Check if empty tile is connected to any other empty tile
+            if not np.any(level[x-1:x+2, y-1:y+2] == 0):
+                return False
+
+        return True
 
     def __getitem__(self, idx):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
