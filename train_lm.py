@@ -12,7 +12,7 @@ from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from datasets import SokobanLMDataset, LMazeLMDataset
+from datasets import GameDataset, SokobanLMDataset, LMazeLMDataset
 from evaluate import evaluate
 from utils import get_run_name, save_train_state, load_train_state
 
@@ -29,7 +29,8 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     epoch, batch_i = global_step // len(data_loader), global_step % len(data_loader)
 
     # Convert data loader to iterator and progress it to the current batch
-    data_loader_iter, dataset = iter(data_loader), data_loader.dataset
+    data_loader_iter = iter(data_loader)
+    dataset: GameDataset = data_loader.dataset
     for _ in range(batch_i):
         next(data_loader_iter)
 
@@ -80,7 +81,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                 progress_bar.set_postfix({"loss": loss.item()})
 
                 if global_step%args.gen_freq == 0:
-                    context = "Width: 10\nHeight: 8\nPath length: 7"
+                    context = dataset.gen_context()
                     inputs = tokenizer(tokenizer.bos_token + context, return_tensors="pt").input_ids
                     inputs = inputs.to(device)
 
@@ -91,6 +92,11 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     if not args.no_log: 
                         log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
                     print(f"\nSample:\n{sample}\n")
+                    print(f"Novel: {dataset.is_novel(sample)}")
+                    sol = dataset.get_solution(sample)
+                    accurate, stats = dataset.is_accurate(sample, sol)
+                    print(f"Accurate: {accurate}")
+                    print(f"Stats: {json.dumps(stats, indent=4)}")
 
                 if global_step%args.save_freq == 0 and not args.no_log:
                     # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))

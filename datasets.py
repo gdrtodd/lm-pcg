@@ -1,5 +1,7 @@
 import hashlib
+import math
 import os
+import random
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -14,6 +16,18 @@ class GameDataset(Dataset):
     def __init__(self):
         self.all_levels = []
         self.level_hashes = set()
+
+    def gen_context(self):
+        return ''
+
+    def is_accurate(self, level, sol):
+        '''
+        Checks fidelity to prompt, if any, and returns relevant stats.
+        '''
+        stats = {
+            'sol_len': None if not sol else len(sol),
+        }
+        return True, stats
 
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
@@ -34,9 +48,9 @@ class GameDataset(Dataset):
         level_hash = self._hash_level(level)
         return level_hash not in self.level_hashes
 
-
-    def is_playable(self, level):
+    def get_solution(self, level):
         raise NotImplementedError
+
 
 class SokobanLMDataset(GameDataset):
     def __init__(self,
@@ -154,7 +168,7 @@ class SokobanLMDataset(GameDataset):
 
         return text.strip()
 
-    def is_playable(self, level, verbose=False):
+    def get_solution(self, level, verbose=False):
         '''
         Determines whether the given level is playable by checking a variety of conditions:
           1. the level is rectangular (i.e. every line is the same length)
@@ -208,7 +222,9 @@ class SokobanLMDataset(GameDataset):
 
 class LMazeLMDataset(GameDataset):
 
+    w_range, h_range = (4, 12), (4, 12)
     holdout_path_lens = {7, 15}
+    n_descriptor_lines = 3  # width, height, path-length
     allowed_chars = "\n#-"
 
     def __init__(self,
@@ -270,7 +286,45 @@ class LMazeLMDataset(GameDataset):
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
-    def is_playable(self, level):
+    def gen_context(self):
+        w = random.randint(*self.w_range)
+        h = random.randint(*self.h_range)
+        pl = random.choice(list(self.holdout_path_lens))
+        context = f"Width: {w}\nHeight: {h}\nPath length: {pl}"
+        return context
+
+    def is_accurate(self, level, sol):
+        # NOTE: We assume the level is playable.
+
+        accurate = True
+        prompt = level.split("\n")[:self.n_descriptor_lines]
+        # Get the supposed width, height, and path length
+        width, height, path_len = [int(line.split(":")[1]) for line in prompt]
+
+        # Check if width and height are correct
+        level_map = "\n".join(level.split("\n")[self.n_descriptor_lines:])
+        lines = level_map.split("\n")
+        line_lengths = [len(line) for line in lines]
+
+        width_i = len(lines[0])
+        height_i = len(lines)
+        stats = {
+            "width": width_i,
+            "height": height_i,
+            "path_len": None if not sol else len(sol),
+        }
+        if width_i != width or height_i != height:
+            accurate = False
+
+        if not sol:
+            accurate = False
+
+        elif len(sol) != path_len:
+            accurate = False
+
+        return accurate, stats        
+
+    def get_solution(self, level):
         '''
         Determines whether the given level is playable by checking a variety of conditions:
           1. the level is rectangular (i.e. every line is the same length)
@@ -279,8 +333,7 @@ class LMazeLMDataset(GameDataset):
           4. no empty tile is on the border of the maze
         '''
         # Check if the level is rectangular
-        n_descriptor_lines = 3  # width, height, path-length
-        level_map = "\n".join(level.split("\n")[n_descriptor_lines:])
+        level_map = "\n".join(level.split("\n")[self.n_descriptor_lines:])
         line_lengths = [len(line) for line in level_map.split("\n")]
         if len(set(line_lengths)) != 1:
             return False
@@ -295,6 +348,18 @@ class LMazeLMDataset(GameDataset):
         # Find all empty tiles
         empty_tiles = np.argwhere(level == 0)
 
+        # Check if any tiles are on the border
+        if np.any(empty_tiles[:, 0] == 0) or np.any(empty_tiles[:, 0] == level.shape[0]-1) or \
+                np.any(empty_tiles[:, 1] == 0) or np.any(empty_tiles[:, 1] == level.shape[1]-1):
+            return False
+        
+        l_mask = np.zeros_like(level)
+
+        # Defaults to playable
+        if len(empty_tiles) == 0:
+            return []
+
+        x_0, y_0 = empty_tiles[0]
         for x, y in empty_tiles:
             # Check if empty tile is on the border of the maze
             if x == 0 or x == level.shape[0]-1 or y == 0 or y == level.shape[1]-1:
@@ -304,7 +369,18 @@ class LMazeLMDataset(GameDataset):
             if not np.any(level[x-1:x+2, y-1:y+2] == 0):
                 return False
 
-        return True
+            # Draw a border-to-border line on the l-mask for each step taken.
+            if x != x_0:
+                l_mask[:, y] = 1
+            if y != y_0:
+                l_mask[x, :] = 1
+            x_0, y_0 = x, y
+
+        # If the l-mask does not contain all empty tiles, then the maze is not an l        
+        if np.any(l_mask + level == 0):
+            return False
+
+        return [(x, y) for x, y in empty_tiles]
 
     def __getitem__(self, idx):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
