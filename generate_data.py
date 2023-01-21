@@ -3,16 +3,15 @@ import shutil
 from datasets import LMazeLMDataset
 from utils import generate_l_mazes
 
-def main(overwrite: bool):
+def generate_data(overwrite: bool):
     data_dir = os.path.join("./", "data", "l-mazes")
 
-    # Automatically overwrite
-    if os.path.isdir(data_dir):
+    if overwrite and os.path.isdir(data_dir):
         shutil.rmtree(data_dir)
 
     l_mazes, path_lens = [], []
-    for width in range(4, 12):
-        for height in range(4, 12):
+    for width in range(LMazeLMDataset.w_range):
+        for height in range(LMazeLMDataset.h_range):
             l_mazes_i, path_lens_i = generate_l_mazes(width, height)
             l_mazes += l_mazes_i
             path_lens += path_lens_i
@@ -75,4 +74,4 @@ def main(overwrite: bool):
     print(f"Saved figure to {os.path.join(data_dir, 'l_mazes_distribution.png')}")
 
 if __name__ == "__main__":
-    main(overwrite=True)
+    generate_data(overwrite=True)

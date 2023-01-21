@@ -26,7 +26,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     if verbose: print("Generating samples...")
     with torch.no_grad():
         samples = model.generate(
-            tokenizer.encode(tokenizer.bos_token + args.gen_context, return_tensors="pt").to(device),
+            tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device),
             max_length=args.gen_len,
             temperature=args.gen_temp,
             do_sample=True,
@@ -40,16 +40,19 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
 
-    sols = [dataset.is_playable(sample) for sample in samples]
+    sols = [dataset.get_solution(sample) for sample in samples]
+    accs, stats = zip(*[dataset.is_accurate(sample, sol) for sample, sol in zip(samples, sols)])
+    num_accurate = sum(accs)
     num_playable = sum([s != False for s in sols])
     num_novel = sum([dataset.is_novel(sample) for sample in samples])
 
+    prop_accurate = num_accurate / len(samples)
     prop_playable = num_playable / len(samples)
     prop_novel = num_novel / len(samples)
 
     if verbose:
         print("GENERATION PARAMETERS:")
-        print(f"\tContext: {args.gen_context}")
+        # print(f"\tContext: {args.gen_context}")
         print(f"\tLength: {args.gen_len}")
         print(f"\tTemperature: {args.gen_temp}")
         print(f"\tTop-k: {args.gen_top_k}")
@@ -61,10 +64,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             print("_" * os.get_terminal_size().columns)
             print(sample)
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
-            print(f"Playable: {dataset.is_playable(sample, verbose=True) != False}")
+            print(f"Playable: {dataset.get_solution(sample, verbose=True) != False}")
             print(f"Novel: {dataset.is_novel(sample)}")
 
         print("_" * os.get_terminal_size().columns)
+        print(f"Proportion accurate: {prop_accurate}")
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
 
