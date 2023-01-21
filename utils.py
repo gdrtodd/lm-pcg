@@ -144,11 +144,15 @@ def generate_l_mazes(width, height):
     path_lens = []
 
     interior_positions = [(y, x) for x in range(1, width-1) for y in range(1, height-1)]
+    used_starts = set()
 
     for start in interior_positions:
         for end in interior_positions:
             if start == end:
                 continue
+            if end in used_starts:
+                continue
+            used_starts.add(start)
 
             grid = np.ones((height, width), dtype=np.int8)
             path = l_path(start, end)

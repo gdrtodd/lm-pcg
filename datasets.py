@@ -93,7 +93,7 @@ class SokobanLMDataset(GameDataset):
                     # Remove the first line of each level, which just contains the level number, and replace spaces with dashes
                     raw_levels = [level[level.find("\n")+1:].strip().replace(" ", "-") for level in raw_levels if level != ""]
 
-                    all_levels += raw_levels
+                    self.all_levels += raw_levels
 
         elif data_source == "boxoban-text":
             data_dir = os.path.join("./data", "boxoban-medium", split)
@@ -105,7 +105,7 @@ class SokobanLMDataset(GameDataset):
                     # Split into individual levels
                     raw_levels = f.read().split("; ")
 
-                    all_levels += [encode_boxoban_text(level) for level in raw_levels if level != ""]
+                    self.all_levels += [encode_boxoban_text(level) for level in raw_levels]
 
         elif data_source == "microban":
             data_dir = "./data/microban"
@@ -135,7 +135,7 @@ class SokobanLMDataset(GameDataset):
                         lines[-1] = lines[-1].replace(" ", "#")
 
                         processed_level = "\n".join(lines).replace(" ", "-")
-                        all_levels.append(processed_level)
+                        self.all_levels.append(processed_level)
 
         else:
             raise NotImplementedError
@@ -172,7 +172,10 @@ class SokobanLMDataset(GameDataset):
 
             # exit()
 
-            for level in tqdm(all_levels, desc="Tokenizing levels"):
+            for level in tqdm(self.all_levels, desc="Tokenizing levels"):
+                # Skip empty level
+                if level == '':
+                    continue
 
                 # We use the MD5 hash of the level as a unique identifier which is stable across runs
                 level_hash = self._hash_level(level)
@@ -334,7 +337,7 @@ class LMazeLMDataset(GameDataset):
             with open(file, "r") as f:
 
                 # Split into individual levels
-                all_levels += f.read().split("\n\n")
+                self.all_levels += f.read().split("\n\n")
 
         # Tokenize processed levels (or load tokens from disk if available).
         token_ids_path = os.path.join(cache_dir, f"{model_name}_l_mazes_{split}_all_token_ids.npy")
@@ -348,7 +351,7 @@ class LMazeLMDataset(GameDataset):
 
             all_token_ids = []
 
-            for level in tqdm(all_levels, desc="Tokenizing L mazes"):
+            for level in tqdm(self.all_levels, desc="Tokenizing L mazes"):
                 # Skip empty level
                 if level == '':
                     continue
