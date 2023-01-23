@@ -113,6 +113,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     if not args.no_log:
                         log_writer.add_scalar("eval/prop_playable", prop_playable, global_step)
                         log_writer.add_scalar("eval/prop_novel", prop_novel, global_step)
+                        log_writer.add_scalar("eval/prop_accurate", prop_accurate, global_step)
 
             # Reset the data loader iterator and save at the end of each epoch
             data_loader_iter = iter(data_loader)
