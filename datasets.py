@@ -3,6 +3,7 @@ import math
 import os
 import multiprocessing as mp
 import random
+from typing import Iterable
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -391,9 +392,11 @@ class LMazeLMDataset(GameDataset):
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
     def gen_context(self):
-        w = random.randint(*self.w_range)
-        h = random.randint(*self.h_range)
         pl = random.choice(list(self.holdout_path_lens))
+        # Uniformly sample a width and height pair from those in which pl is possible
+        # It must be that w + h - 6 (subtracting 4 border tiles, 1 corner, and 1 first path tile) can fit the l.
+        # TODO: Sample according to actual distribution? E.g. only 4 relevant levels when w + h - 6 = pl
+        w, h = random.choice([(w, h) for w in range(*self.w_range) for h in range(*self.h_range) if w + h - 6 >= pl])
         context = f"Width: {w}\nHeight: {h}\nPath length: {pl}"
         return context
 
@@ -412,18 +415,13 @@ class LMazeLMDataset(GameDataset):
 
         width_i = len(lines[0])
         height_i = len(lines)
+        path_len_i = len(sol) - 1 if isinstance(sol, Iterable) else sol
         stats = {
             "width": width_i,
             "height": height_i,
-            "path_len": None if not sol else len(sol),
+            "path_len": path_len_i,
         }
-        if width_i != width or height_i != height:
-            accurate = False
-
-        if not sol:
-            accurate = False
-
-        elif len(sol) != path_len:
+        if width_i != width or height_i != height or path_len_i != path_len:
             accurate = False
 
         return accurate, stats        
