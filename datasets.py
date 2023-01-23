@@ -55,6 +55,11 @@ class GameDataset(Dataset):
         '''
         Decode an array of token IDs back into text.
         '''
+        # Get first position in sample corresponding to an EOS token, and truncate the sample accordingly.
+        # (We're basically being forgiving to models that don't pad the end of each sample with unbroken EOS's)
+        eos_pos = torch.where(token_ids == self.tokenizer.encode(self.tokenizer.eos_token)[0])[0][0].item()
+        token_ids = token_ids[:eos_pos]
+
         text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
 
         return text
@@ -264,7 +269,7 @@ class SokobanLMDataset(GameDataset):
         Decode an array of token IDs back into text. Depending on the data source, this may also apply
         some post-processing to the text.
         '''
-        text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
+        text = super().decode(token_ids)
 
         if self.data_source == "boxoban-text":
             text = decode_boxoban_text(text)
@@ -397,7 +402,7 @@ class LMazeLMDataset(GameDataset):
         # It must be that w + h - 6 (subtracting 4 border tiles, 1 corner, and 1 first path tile) can fit the l.
         # TODO: Sample according to actual distribution? E.g. only 4 relevant levels when w + h - 6 = pl
         w, h = random.choice([(w, h) for w in range(*self.w_range) for h in range(*self.h_range) if w + h - 6 >= pl])
-        context = f"Width: {w}\nHeight: {h}\nPath length: {pl}"
+        context = f"Width: {w}\nHeight: {h}\nPath length: {pl}\n"
         return context
 
     def is_accurate(self, level, sol):
