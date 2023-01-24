@@ -61,13 +61,14 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"\tBeams: {args.gen_beams}")
 
         for idx, sample in enumerate(samples):
-            print("_" * os.get_terminal_size().columns)
+            print("_" * 80)
             print(sample)
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
             print(f"Playable: {dataset.get_solution(sample, verbose=True) != False}")
             print(f"Novel: {dataset.is_novel(sample)}")
+            print(f"Accurate: {dataset.is_accurate(sample, sols[idx])}")
 
-        print("_" * os.get_terminal_size().columns)
+        print("_" * 80)
         print(f"Proportion accurate: {prop_accurate}")
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
@@ -117,7 +118,6 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         env.close()
             
     return prop_accurate, prop_playable, prop_novel
-
 
 @hydra.main(config_path="conf", config_name="config")
 def main(args: Config):
