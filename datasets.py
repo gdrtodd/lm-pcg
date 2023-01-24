@@ -327,7 +327,7 @@ class LMazeLMDataset(GameDataset):
 
         return accurate, stats        
 
-    def get_solution(self, level):
+    def get_solution(self, level, verbose=False):
         '''
         Determines whether the given level is playable by checking a variety of conditions:
           1. the level is rectangular (i.e. every line is the same length)
