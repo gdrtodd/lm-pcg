@@ -1,5 +1,6 @@
 griddly
 pandas
+tables
 tensorboard
 torch
 tqdm
