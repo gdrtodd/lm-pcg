@@ -1,4 +1,5 @@
 griddly
+levenshtein
 pandas
 tables
 tensorboard
