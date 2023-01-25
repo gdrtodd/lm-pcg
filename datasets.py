@@ -21,6 +21,7 @@ VALID_DATA_SOURCES = ["boxoban", "boxoban-chars", "boxoban-text", "microban"]
 class GameDataset(Dataset):
     def __init__(self):
         self.all_token_ids = []
+        self.level_hashes = set({})
         
         # self.split = split
         # self.chunk_size = chunk_size
@@ -47,7 +48,12 @@ class GameDataset(Dataset):
         '''
         # Get first position in sample corresponding to an EOS token, and truncate the sample accordingly.
         # (We're basically being forgiving to models that don't pad the end of each sample with unbroken EOS's)
-        eos_pos = torch.where(token_ids == self.tokenizer.encode(self.tokenizer.eos_token)[0])[0][0].item()
+        eos_pos = torch.where(token_ids == self.tokenizer.encode(self.tokenizer.eos_token)[0])
+        # If there are no EOS tokens, just use the whole sample
+        if len(eos_pos[0]) == 0:
+            eos_pos = len(token_ids)
+        else:
+            eos_pos = eos_pos[0][0].item()
         token_ids = token_ids[:eos_pos]
 
         text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
@@ -296,6 +302,8 @@ class SokobanLMDataset(GameDataset):
 class AnnotatedSokobanDataset(GameDataset):
     """Assume we've pre-processed a sokoban dataset and saved it to a pandas dataframe."""
     holdout_sol_lens = {25, 60, 100}
+    n_descriptor_lines = 1  # sol-length
+
     def __init__(self,
                  tokenizer: AutoTokenizer,
                  model_name: str,
@@ -309,6 +317,7 @@ class AnnotatedSokobanDataset(GameDataset):
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
         self.df = pd.read_hdf(os.path.join(cache_dir, "boxoban_data.h5"), key="data")
+        self.level_hashes = set(self.df["level_hash"].values)
         if data_source in ["boxoban", "boxoban-chars"]:
             self.lvl_col = "level"
         elif data_source == "boxoban-text":
@@ -316,12 +325,11 @@ class AnnotatedSokobanDataset(GameDataset):
 
         # Tokenize processed levels (or load tokens from disk if available).
         token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}-annotated_{split}_chunksize_{chunk_size}_all_token_ids.npy")
-        level_hashes_path = os.path.join(cache_dir, f"{model_name}_{data_source}-annotated_{split}_level_hashes.npy")
 
-        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
+        if os.path.isfile(token_ids_path):
             print(f"Loading tokens from cache at {token_ids_path}...")
             self.all_token_ids = np.load(token_ids_path)
-            self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
+            # self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
 
         else:
             # Optionally ensure each tile-character is tokenized individually
@@ -379,11 +387,12 @@ class AnnotatedSokobanDataset(GameDataset):
           5. the level can be solved by an ASTAR agent
         If the level is playable, return the solution (return False otherwise).
         '''
-        breakpoint()
-        # TODO: Need to remove prompt
+        # Remove prompt
+        level_lines = level.split("\n")[self.n_descriptor_lines:]
+        level = "".join(level_lines)
 
         # Check if the level is rectangular
-        line_lengths = [len(line) for line in level.split("\n")]
+        line_lengths = [len(line) for line in level_lines]
         if len(set(line_lengths)) != 1:
             if verbose: print("--Level is not rectangular--")
             return False
@@ -405,7 +414,7 @@ class AnnotatedSokobanDataset(GameDataset):
             return False
 
         # Check if the level can be solved by an ASTAR agent
-        level_state = State().stringInitialize(level.split("\n"))
+        level_state = State().stringInitialize(level_lines)
         solution, node, iters = self.solver.getSolution(level_state, maxIterations=50000)
         if not node.checkWin():
             if verbose: print("--Level cannot be solved (... in 50k steps)--")
