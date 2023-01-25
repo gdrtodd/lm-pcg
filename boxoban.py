@@ -40,7 +40,7 @@ class BoxobanData():
             train_level_files = [os.path.join(train_levels_dir, file) for file in os.listdir(train_levels_dir) if file.endswith(".txt")]
         # Single file
         else:
-            save_dir = os.path.join(cfg.save_dir, 'boxoban_data')
+            save_dir = os.path.join(save_dir, 'boxoban_data')
             cache_file = os.path.join(save_dir, f"boxoban_data_{level_file_idx:03}.h5")
             train_level_files = [os.path.join(train_levels_dir, f"{level_file_idx:03}.txt")]
 

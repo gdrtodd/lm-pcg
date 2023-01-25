@@ -6,12 +6,10 @@ import pandas as pd
 from boxoban import BoxobanData
 
 
-@hydra.main(config_path="conf", config_name="boxoban_preprocessing")
 def gen_solved_boxoban_data(cfg):
     B = BoxobanData(cfg.data_dir, cfg.save_dir, cfg.n_proc,  cfg.level_file_idx)
 
 
-@hydra.main(config_path="conf", config_name="boxoban_preprocessing")
 def aggregate_boxoban_data(cfg):
     save_subdir = os.path.join(cfg.save_dir, 'boxoban_data')
     saved_data = os.listdir(save_subdir)
@@ -19,6 +17,7 @@ def aggregate_boxoban_data(cfg):
     data = pd.concat([pd.read_hdf(os.path.join(save_subdir, file), key="data") for file in saved_data])
 
     # Ensure no two levels have the same hash and remove any duplicates
+    print("Deduplicating...")
     n_pre_dedup = data.shape[0]
     data.drop_duplicates(subset="level_hash", inplace=True)
     n_post_dedup = data.shape[0]
@@ -30,7 +29,13 @@ def aggregate_boxoban_data(cfg):
     print(f"Saved {data.shape[0]} levels to {cfg.save_dir}.")
 
 
-if __name__ == "__main__":
+@hydra.main(config_path="conf", config_name="boxoban_preprocessing")
+def main(cfg):
+    if not cfg.aggregate:
+        gen_solved_boxoban_data(cfg)
+    else:
+        aggregate_boxoban_data(cfg)
 
-    # gen_solved_boxoban_data()
-    aggregate_boxoban_data()
+
+if __name__ == "__main__":
+    main()

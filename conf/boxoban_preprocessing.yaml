@@ -24,6 +24,7 @@ hydra:
     chdir: False
 
 
+aggregate: False  # Collect all results into a single file
 n_proc: 40
 data_dir: ./data
 save_dir: ./caches
