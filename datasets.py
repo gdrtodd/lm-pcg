@@ -34,10 +34,7 @@ class GameDataset(Dataset):
         '''
         Checks fidelity to prompt, if any, and returns relevant stats.
         '''
-        stats = {
-            'sol_len': None if not sol else len(sol),
-        }
-        return True, stats
+        raise NotImplementedError
 
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
@@ -436,6 +433,13 @@ class AnnotatedSokobanDataset(GameDataset):
         sl = random.choice(list(self.holdout_sol_lens))
         return self._gen_prompt(sl)
 
+    def is_accurate(self, level, sol):
+        prompt = level.split("\n")[:self.n_descriptor_lines]
+        trg_sol_len = int(prompt[0].split(":")[1])
+        stats = {'sol_len': None if not sol else len(sol)} 
+        if not sol:
+            return False, stats
+        return trg_sol_len == len(sol), stats
 
     def __len__(self):
         return len(self.df)
