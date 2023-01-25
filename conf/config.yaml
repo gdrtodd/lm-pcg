@@ -35,7 +35,7 @@ no_log: false
 num_eval_samples: 20
 gen_freq: 500
 gen_len: 128
-gen_context: ''
+# gen_context: ''
 gen_temp: 1
 gen_beams: 5
 gen_top_k: 50
