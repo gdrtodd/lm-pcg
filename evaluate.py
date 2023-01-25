@@ -34,7 +34,8 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             top_p=args.gen_top_p,
             typical_p=args.gen_typical_p,
             num_beams=args.gen_beams,
-            num_return_sequences=args.num_eval_samples
+            num_return_sequences=args.num_eval_samples,
+            pad_token_id=tokenizer.eos_token_id,
         )
 
     # Decode samples
@@ -45,10 +46,12 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     num_accurate = sum(accs)
     num_playable = sum([s != False for s in sols])
     num_novel = sum([dataset.is_novel(sample) for sample in samples])
+    num_unique = len(set(samples)) # could also do len(set([dataset._hash_level(sample) for sample in samples]))
 
     prop_accurate = num_accurate / len(samples)
     prop_playable = num_playable / len(samples)
     prop_novel = num_novel / len(samples)
+    prop_unique = num_unique / len(samples)
 
     if verbose:
         print("GENERATION PARAMETERS:")
@@ -72,6 +75,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"Proportion accurate: {prop_accurate}")
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
+        print(f"Proportion unique: {prop_unique}")
 
     model.train()
 
@@ -117,7 +121,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
                     duration=300, loop=0)
         env.close()
             
-    return prop_accurate, prop_playable, prop_novel
+    return prop_accurate, prop_playable, prop_novel, prop_unique
 
 @hydra.main(config_path="conf", config_name="config")
 def main(args: Config):

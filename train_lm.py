@@ -108,11 +108,12 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 if global_step%args.eval_freq == 0:
                     print(f"\nGenerating samples for evaluation at step {global_step}...")
-                    prop_accurate, prop_playable, prop_novel = evaluate(model, device, tokenizer, dataset,  args)
+                    prop_accurate, prop_playable, prop_novel, prop_unique = evaluate(model, device, tokenizer, dataset,  args)
 
                     print("Proportion of accurate levels:", prop_accurate)
                     print("Proportion of playable levels:", prop_playable)
                     print("Proportion of novel levels:", prop_novel)
+                    print("Proportion of unique levels:", prop_unique)
 
                     if not args.no_log:
                         log_writer.add_scalar("eval/prop_playable", prop_playable, global_step)
