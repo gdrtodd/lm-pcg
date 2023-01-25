@@ -23,10 +23,33 @@ def aggregate_boxoban_data(cfg):
     n_post_dedup = data.shape[0]
     print(f"Removed {n_pre_dedup - n_post_dedup} duplicate levels.")
 
-    # Save the data
-    data.to_hdf(os.path.join(cfg.save_dir, "boxoban_data.h5"), key="data")
+    # Inspect size of dataframe in memory (this is a lie?)
+    # print(f"Dataframe size: {data.memory_usage().sum() / 1e6} MB")
 
+    # Save the data
+    df_file = os.path.join(cfg.save_dir, "boxoban_data.h5")
+    data.to_hdf(df_file, key="data")
     print(f"Saved {data.shape[0]} levels to {cfg.save_dir}.")
+    # Inspect size of saved file
+    print(f"Saved file size: {os.path.getsize(df_file) / 1e6} MB")
+
+    # Plot the distribution of solution lengths
+    # Get the number of levels with each solution length
+    sol_lens = data["solution_len"].value_counts()
+    # Are there any "holes" in the path-lengths in the dataset? Print them
+    for i in range(sol_lens.index.min(), sol_lens.index.max() + 1):
+        if i not in sol_lens.index:
+            print(f"Solution length {i} not found in dataset.")
+    # Plot the distribution
+    import matplotlib.pyplot as plt
+    plt.bar(sol_lens.index, sol_lens.values)
+    plt.title("number of Boxoban levels per solution length")
+    plt.xlabel("solution length")
+    plt.ylabel("number of Boxoban levels")
+    im_path = os.path.join(cfg.data_dir, 'boxoban-medium', 'boxoban_sol_len_dist.png')
+    plt.savefig(im_path)
+    print(f"Saved figure to {im_path}.")
+    plt.close()
 
 
 @hydra.main(config_path="conf", config_name="boxoban_preprocessing")

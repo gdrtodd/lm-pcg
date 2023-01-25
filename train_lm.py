@@ -12,7 +12,7 @@ from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from datasets import GameDataset, SokobanLMDataset, LMazeLMDataset
+from datasets import AnnotatedSokobanDataset, GameDataset, SokobanLMDataset, LMazeLMDataset
 from evaluate import evaluate
 from utils import get_run_name, save_train_state, load_train_state
 
@@ -164,7 +164,8 @@ def main(args: Config):
     # Instantiate the dataset
     if args.game == "sokoban":
         data_source = args.data_source if args.data_source else "boxoban"
-        dataset = SokobanLMDataset(tokenizer,
+        # dataset = SokobanLMDataset(tokenizer,
+        dataset = AnnotatedSokobanDataset(tokenizer,
                                    args.model,
                                    data_source=data_source,
                                    annotation_level=args.annotation_level,

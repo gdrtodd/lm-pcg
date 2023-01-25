@@ -4,7 +4,9 @@ import os
 import multiprocessing as mp
 import random
 from typing import Iterable
+
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
@@ -15,26 +17,14 @@ from sokoban_solvers import EnhancedAStarAgent, State
 
 VALID_DATA_SOURCES = ["boxoban", "boxoban-chars", "boxoban-text", "microban"]
 
-class SokobanLMDataset(Dataset):
-    '''
-    Dataset for Sokobaln levels for use with a language model
-
-    Args:
-        -tokenizer: Huggingface tokenizer for a specific language model
-        -model_name: Name of the language model
-        -data_source: Which type dataset to use. Current options are "boxoban" (raw levels), "boxoban-chars"
-            (tokenizing each character separately), and "boxoban-text" (representing levels in natural language)
-        -annotation: What style of annotation to use. Current options are None (no annotation), "partial" 
-            (width, length, # of boxes, % whitespace), and "full" (partial annotation + solution length)
-        -split Which split of the dataset to use (if available)
-        -chunk_size: Number of tokens per item in the datatset
-        -cache_dir: Path to dataset cache files
-    '''
 
 class GameDataset(Dataset):
     def __init__(self):
-        self.all_levels = []
-        self.level_hashes = set()
+        self.all_token_ids = []
+        
+        # self.split = split
+        # self.chunk_size = chunk_size
+        # self.tokenizer = tokenizer
 
     def gen_context(self):
         return ''
@@ -75,8 +65,26 @@ class GameDataset(Dataset):
     def get_solution(self, level):
         raise NotImplementedError
 
+    def __getitem__(self, idx):
+        start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
+        return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
+
 
 class SokobanLMDataset(GameDataset):
+    '''
+    Dataset for Sokoban levels for use with a language model
+
+    Args:
+        -tokenizer: Huggingface tokenizer for a specific language model
+        -model_name: Name of the language model
+        -data_source: Which type dataset to use. Current options are "boxoban" (raw levels), "boxoban-chars"
+            (tokenizing each character separately), and "boxoban-text" (representing levels in natural language)
+        -annotation: What style of annotation to use. Current options are None (no annotation), "partial" 
+            (width, length, # of boxes, % whitespace), and "full" (partial annotation + solution length)
+        -split Which split of the dataset to use (if available)
+        -chunk_size: Number of tokens per item in the datatset
+        -cache_dir: Path to dataset cache files
+    '''
     def __init__(self,
                  tokenizer: AutoTokenizer,
                  model_name: str,
@@ -88,7 +96,6 @@ class SokobanLMDataset(GameDataset):
 
         assert data_source in VALID_DATA_SOURCES, f"Data source must be one of {VALID_DATA_SOURCES}"
         assert annotation_level in [None, "partial", "full"], "Annotation must be one of [None, partial, full]"
-        super().__init__()
 
         self.data_source = data_source
         self.split = split
@@ -278,6 +285,90 @@ class SokobanLMDataset(GameDataset):
 
         return text.strip()
 
+    def __getitem__(self, idx):
+        start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
+        return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
+
+    def __len__(self):
+        return len(self.all_token_ids) // self.chunk_size
+
+
+class AnnotatedSokobanDataset(GameDataset):
+    """Assume we've pre-processed a sokoban dataset and saved it to a pandas dataframe."""
+    holdout_sol_lens = {25, 60, 100}
+    def __init__(self,
+                 tokenizer: AutoTokenizer,
+                 model_name: str,
+                 data_source="boxoban",
+                 annotation_level="full",
+                 split="train",
+                 chunk_size=128,
+                 cache_dir="./caches"):
+        
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.chunk_size = chunk_size
+        self.df = pd.read_hdf(os.path.join(cache_dir, "boxoban_data.h5"), key="data")
+        if data_source in ["boxoban", "boxoban-chars"]:
+            self.lvl_col = "level"
+        elif data_source == "boxoban-text":
+            self.lvl_col = "level_text"
+
+        # Tokenize processed levels (or load tokens from disk if available).
+        token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}-annotated_{split}_chunksize_{chunk_size}_all_token_ids.npy")
+        level_hashes_path = os.path.join(cache_dir, f"{model_name}_{data_source}-annotated_{split}_level_hashes.npy")
+
+        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path):
+            print(f"Loading tokens from cache at {token_ids_path}...")
+            self.all_token_ids = np.load(token_ids_path)
+            self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
+
+        else:
+            # Optionally ensure each tile-character is tokenized individually
+            if data_source == "boxoban-chars":
+                tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
+                tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
+
+            all_token_ids = []
+
+            for i, level in enumerate(tqdm(self.df[self.lvl_col], desc="Tokenizing levels")):
+            # for level in tqdm(self.all_levels, desc="Tokenizing levels"):
+                level = self._get_text(i)
+                # Skip empty level
+                if level == '':
+                    raise Exception
+
+                # We use the MD5 hash of the level as a unique identifier which is stable across runs
+                # level_hash = self._hash_level(level)
+                # if level_hash in self.level_hashes:
+                #     continue
+
+                # self.level_hashes.add(level_hash)
+
+                if data_source == "boxoban-chars":
+                    # Manual tokenization to ensure each tile token is separate
+                    token_ids = []
+                    level_rows = level.split('\n')
+                    for row in level_rows:
+                        token_ids += [tile_encodings[c] for c in row] + [tile_encodings['\n']]
+                    token_ids = [tile_encodings[tokenizer.bos_token]] + token_ids + [tile_encodings[tokenizer.eos_token]]
+                    # Pad
+                    token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
+
+                else:
+                    # Standard tokenization
+
+                    level = f"{tokenizer.bos_token}{level}{level}{tokenizer.eos_token}"
+                    token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
+
+                all_token_ids += token_ids
+
+            # Save token ids and hashes to disk
+            np.save(token_ids_path, all_token_ids)
+            # np.save(level_hashes_path, self.level_hashes)
+
+            self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
+
     def get_solution(self, level, verbose=False):
         '''
         Determines whether the given level is playable by checking a variety of conditions:
@@ -288,6 +379,8 @@ class SokobanLMDataset(GameDataset):
           5. the level can be solved by an ASTAR agent
         If the level is playable, return the solution (return False otherwise).
         '''
+        breakpoint()
+        # TODO: Need to remove prompt
 
         # Check if the level is rectangular
         line_lengths = [len(line) for line in level.split("\n")]
@@ -322,12 +415,21 @@ class SokobanLMDataset(GameDataset):
 
         return solution
 
-    def __getitem__(self, idx):
-        start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
-        return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
+    def _get_text(self, i):
+        prompt = self._gen_prompt(self.df.iloc[i]["solution_len"])
+        level = self.df.iloc[i][self.lvl_col]
+        return prompt + level
+
+    def _gen_prompt(self, sol_len):
+        return f"Solution length: {sol_len}\n"
+
+    def gen_context(self):
+        sl = random.choice(list(self.holdout_sol_lens))
+        return self._gen_prompt(sl)
+
 
     def __len__(self):
-        return len(self.all_token_ids) // self.chunk_size
+        return len(self.df)
 
 
 class LMazeLMDataset(GameDataset):
@@ -488,10 +590,3 @@ class LMazeLMDataset(GameDataset):
             return False
 
         return [(x, y) for x, y in empty_tiles]
-
-    def __getitem__(self, idx):
-        start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
-        return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
-
-    def __len__(self):
-        return len(self.all_token_ids) // self.chunk_size
