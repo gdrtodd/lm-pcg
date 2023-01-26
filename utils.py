@@ -7,13 +7,13 @@ import torch
 from transformers import AutoModelForCausalLM
 
 def get_run_name(args):
-    # datetime_str = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     run_name = os.path.join(
         args.game,
-        args.model,
-        args.data_source if args.data_source else "",
+        f"model:{args.model}",
+        f"level_key:{args.level_key}",
+        f"annotation_keys:{args.annotation_keys}",
+        f"holdouts:{args.holdout_solution_lens}",
         f"chunk_size-{args.chunk_size}_lr-{args.learning_rate}",
-        args.exp_name,
         f"seed-{args.seed}",
     )
     return run_name

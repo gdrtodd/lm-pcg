@@ -1,5 +1,5 @@
 from dataclasses import MISSING, dataclass
-from typing import Optional
+import typing
 
 from hydra.core.config_store import ConfigStore
 
@@ -10,8 +10,9 @@ class Config:
 
     # Dataset
     game: str = "sokoban"
-    data_source: Optional[str] = None
-    annotation_level: Optional[str] = None
+    level_key: str = "level"
+    annotation_keys: typing.Optional[typing.List[str]] = None
+    holdout_solution_lens: typing.Optional[typing.List[int]] = None
     chunk_size: int = 128
 
     # Model

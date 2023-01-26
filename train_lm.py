@@ -165,13 +165,13 @@ def main(args: Config):
 
     # Instantiate the dataset
     if args.game == "sokoban":
-        data_source = args.data_source if args.data_source else "boxoban"
-        # dataset = SokobanLMDataset(tokenizer,
         dataset = AnnotatedSokobanDataset(tokenizer,
-                                   args.model,
-                                   data_source=data_source,
-                                   annotation_level=args.annotation_level,
-                                   chunk_size=args.chunk_size)
+                                          args.model,
+                                          level_key=args.level_key,
+                                          annotation_keys=args.annotation_keys,
+                                          holdout_solution_lens=args.holdout_solution_lens,
+                                          split="train",
+                                          chunk_size=args.chunk_size)
 
     elif args.game == "l_maze":
         dataset = LMazeLMDataset(tokenizer,

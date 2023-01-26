@@ -377,11 +377,16 @@ class AnnotatedSokobanDataset(GameDataset):
 
             for idx in tqdm(range(len(self.train_dataframe)), desc="Tokenizing levels"):
                 level = self.train_dataframe.iloc[idx][self.level_key]
-                annotation = self._gen_annotation(idx)
+
+                if self.annotation_keys is None:
+                    annotation = ""
+                else:
+                    annotation_values = [self.train_dataframe.iloc[idx][key] for key in self.annotation_keys]
+                    annotation = self._format_annotation(annotation_values)
 
                 # Add annotation and tokenizer BOS / EOS tokens, then tokenize
                 full_level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
-                token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
+                token_ids = self.tokenizer.encode(full_level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
 
@@ -448,25 +453,24 @@ class AnnotatedSokobanDataset(GameDataset):
 
         return solution
 
-    def _get_text(self, i):
-        prompt = self._gen_prompt(self.df.iloc[i]["solution_len"])
-        level = self.df.iloc[i][self.lvl_col]
-        return prompt + level
+    def _format_annotation(self, annotation_values):
+        '''
+        Generate the annotation (as a string) by formatting the supplied annotation values
+        '''
 
-    def _gen_annotation(self, df_idx):
-
-        if self.annotation_keys is None:
-            return ""
-
-        annotation_values = [self.train_dataframe.iloc[df_idx][key] for key in self.annotation_keys]
-        annotation = "\n".join([f"{key.replace('_', ' ').title()}: {value}" for key, value in zip(self.annotation_keys, annotation_values)])
+        annotation = "\n".join([f"{key.replace('_', ' ').capitalize()}: {value}" for key, value in zip(self.annotation_keys, annotation_values)])
         annotation += "\n"
 
         return annotation
 
     def gen_context(self):
-        sl = random.choice(list(self.holdout_sol_lens))
-        return self._gen_prompt(sl)
+        '''
+        Generate a random context for sampling by randomly selecting a level from the heldout set and returning its annotation
+        '''
+        random_idx = np.random.randint(len(self.holdout_dataframe))
+        annotation_values = [self.holdout_dataframe.iloc[random_idx][key] for key in self.annotation_keys]
+
+        return self._format_annotation(annotation_values)
 
     def is_accurate(self, level, sol):
         prompt = level.split("\n")[:self.n_descriptor_lines]
@@ -476,8 +480,12 @@ class AnnotatedSokobanDataset(GameDataset):
             return False, stats
         return trg_sol_len == len(sol), stats
 
+    def __getitem__(self, idx):
+        start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
+        return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
+
     def __len__(self):
-        return len(self.df)
+        return len(self.all_token_ids) // self.chunk_size
 
 
 class LMazeLMDataset(GameDataset):

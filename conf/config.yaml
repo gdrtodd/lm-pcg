@@ -10,8 +10,9 @@ defaults:
 
 # Dataset args
 game: sokoban
-data_source: null
-annotation_level: null
+level_key: level
+annotation_keys: null
+holdout_solution_lens: null
 chunk_size: 128
 
 # Model args
