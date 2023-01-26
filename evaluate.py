@@ -9,11 +9,11 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from conf.config import Config
-from datasets import SokobanLMDataset
+from datasets import GameDataset, AnnotatedSokobanDataset
 from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name, load_train_state
 
 
-def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: SokobanLMDataset, args: Config, 
+def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
         verbose=False, render_dir=None):
 
     # Map the model to the available device
@@ -145,11 +145,13 @@ def main(args: Config):
 
     # Instantiate the dataset
     if args.game == "sokoban":
-        data_source = args.data_source if args.data_source else "boxoban"
-        dataset = SokobanLMDataset(tokenizer,
-                                   args.model,
-                                   data_source=data_source,
-                                   chunk_size=args.chunk_size)
+        dataset = AnnotatedSokobanDataset(tokenizer,
+                                          args.model,
+                                          level_key=args.level_key,
+                                          annotation_keys=args.annotation_keys,
+                                          holdout_solution_lens=args.holdout_solution_lens,
+                                          split="train",
+                                          chunk_size=args.chunk_size)
 
     else:
         raise NotImplementedError

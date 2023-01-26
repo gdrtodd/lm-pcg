@@ -13,7 +13,7 @@ from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from datasets import AnnotatedSokobanDataset, GameDataset, SokobanLMDataset, LMazeLMDataset
+from datasets import GameDataset, AnnotatedSokobanDataset, LMazeLMDataset
 from evaluate import evaluate
 from utils import get_run_name, save_train_state, load_train_state
 
@@ -97,12 +97,17 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     if not args.no_log: 
                         log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
 
-                    sol = dataset.get_solution(sample)
-                    accurate = dataset.is_accurate(sample, sol)
+                    solution = dataset.get_solution(sample)
+
+                    # Check accuracy to the annotation if the level is playable (unplayable levels are always inaccurate)
+                    if solution == False:
+                        accurate = False
+                    else:
+                        accurate = dataset.is_accurate(sample, solution)
 
                     print(f"\nSample:\n{sample}\n")
                     print(f"Novel: {dataset.is_novel(sample)}")    
-                    print(f"Playable: {sol != False}")
+                    print(f"Playable: {solution != False}")
                     print(f"Accurate: {accurate}")
 
                 if global_step%args.save_freq == 0 and not args.no_log:

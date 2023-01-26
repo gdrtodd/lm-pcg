@@ -75,231 +75,6 @@ class GameDataset(Dataset):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
         return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
 
-
-# DEPRECATED. For reference only. (For prompt-free generation, we can modify the new sokoban dataset class to exclude the prompt.)
-class SokobanLMDataset(GameDataset):
-    '''
-    Dataset for Sokoban levels for use with a language model
-
-    Args:
-        -tokenizer: Huggingface tokenizer for a specific language model
-        -model_name: Name of the language model
-        -data_source: Which type dataset to use. Current options are "boxoban" (raw levels), "boxoban-chars"
-            (tokenizing each character separately), and "boxoban-text" (representing levels in natural language)
-        -annotation: What style of annotation to use. Current options are None (no annotation), "partial" 
-            (width, length, # of boxes, % whitespace), and "full" (partial annotation + solution length)
-        -split Which split of the dataset to use (if available)
-        -chunk_size: Number of tokens per item in the datatset
-        -cache_dir: Path to dataset cache files
-    '''
-    def __init__(self,
-                 tokenizer: AutoTokenizer,
-                 model_name: str,
-                 data_source="boxoban",
-                 annotation_level=None,
-                 split="train",
-                 chunk_size=128,
-                 cache_dir="./caches"):
-
-        assert data_source in VALID_DATA_SOURCES, f"Data source must be one of {VALID_DATA_SOURCES}"
-        assert annotation_level in [None, "partial", "full"], "Annotation must be one of [None, partial, full]"
-
-        self.data_source = data_source
-        self.split = split
-        self.chunk_size = chunk_size
-
-        self.tokenizer = tokenizer
-        self.pad_token_id = self.tokenizer.pad_token_id
-
-        self.solver = EnhancedAStarAgent()
-
-        # Pre-process levels.
-        if data_source in ["boxoban", "boxoban-chars"]:
-            data_dir = os.path.join("./data", "boxoban-medium", split)
-
-            level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
-            for file in level_files:
-                with open(file, "r") as f:
-
-                    # Split into individual levels
-                    raw_levels = f.read().split("; ")
-
-                    # Remove the first line of each level, which just contains the level number, and replace spaces with dashes
-                    raw_levels = [level[level.find("\n")+1:].strip().replace(" ", "-") for level in raw_levels if level != ""]
-
-                    self.all_levels += raw_levels
-
-        elif data_source == "boxoban-text":
-            data_dir = os.path.join("./data", "boxoban-medium", split)
-
-            level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
-            for file in level_files:
-                with open(file, "r") as f:
-
-                    # Split into individual levels
-                    raw_levels = f.read().split("; ")
-
-                    self.all_levels += [encode_boxoban_text(level) for level in raw_levels]
-
-        elif data_source == "microban":
-            data_dir = "./data/microban"
-            level_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".txt")]
-            for file in level_files:
-                with open(file, "r") as f:
-
-                    # Split into individual levels
-                    raw_levels = f.read().split("; ")
-
-                    # Remove the first line of each level, which just contains the level number
-                    raw_levels = [level[level.find("\n")+1:] for level in raw_levels if level != ""]
-
-                    for raw in raw_levels:
-                        max_width = max([len(row) for row in raw.split("\n")])
-
-                        # Pad each row to the same length and replace leading spaces
-                        lines = []
-                        for row in raw.split("\n"):
-                            if row == "": continue
-                            num_leading_spaces = len(row) - len(row.lstrip())
-                            row = ("#" * num_leading_spaces) + row.strip() + ("#" * (max_width - len(row)))
-                            lines.append(row)
-
-                        # Fill in gaps in to top and bottom rows
-                        lines[0] = lines[0].replace(" ", "#")
-                        lines[-1] = lines[-1].replace(" ", "#")
-
-                        processed_level = "\n".join(lines).replace(" ", "-")
-                        self.all_levels.append(processed_level)
-
-        else:
-            raise NotImplementedError
-
-        # Tokenize processed levels (or load tokens from disk if available).
-        token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_chunksize_{chunk_size}_all_token_ids.npy")
-        level_hashes_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_level_hashes.npy")
-        annotations_path = os.path.join(cache_dir, f"{model_name}_{data_source}_{split}_{annotation_level}_annotations.npy")
-
-        if os.path.isfile(token_ids_path) and os.path.isfile(level_hashes_path) and (os.path.isfile(annotations_path) or annotation_level is None):
-            print(f"Loading tokens from cache at {token_ids_path}...")
-            self.all_token_ids = np.load(token_ids_path)
-            self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
-
-        else:
-            # Optionally ensure each tile-character is tokenized individually
-            if data_source == "boxoban-chars":
-                tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
-                tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
-
-            all_token_ids = []
-
-            # if annotation_level is not None:
-            #     with mp.Pool(16) as pool:
-            #         all_annotations = list(tqdm(pool.imap(self._annotate_level, all_levels[:100]), total=len(all_levels[:100]),
-            #                                     desc="Annotating levels"))
-            #     from tqdm.contrib.concurrent import process_map
-            #     all_annotations = process_map(self._annotate_level, all_levels, chunksize=1000, max_workers=1,
-            #                                   desc="Annotating levels")
-
-            # for ann in all_annotations:
-            #     print("=" * 80)
-            #     print(ann)
-
-            # exit()
-
-            for level in tqdm(self.all_levels, desc="Tokenizing levels"):
-                # Skip empty level
-                if level == '':
-                    continue
-
-                # We use the MD5 hash of the level as a unique identifier which is stable across runs
-                level_hash = self._hash_level(level)
-                if level_hash in self.level_hashes:
-                    continue
-
-                self.level_hashes.add(level_hash)
-
-                if data_source == "boxoban-chars":
-                    # Manual tokenization to ensure each tile token is separate
-                    token_ids = []
-                    level_rows = level.split('\n')
-                    for row in level_rows:
-                        token_ids += [tile_encodings[c] for c in row] + [tile_encodings['\n']]
-                    token_ids = [tile_encodings[tokenizer.bos_token]] + token_ids + [tile_encodings[tokenizer.eos_token]]
-                    # Pad
-                    token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
-
-                else:
-                    # Standard tokenization
-                    if annotation_level is not None:
-                        annotation = self._annotate_level(level, include_sol_len=(annotation_level == "full")) + "\n\n"
-                        print(annotation)
-                    else:
-                        annotation = ""
-
-                    level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
-                    token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
-
-                all_token_ids += token_ids
-
-            # Save token ids and hashes to disk
-            np.save(token_ids_path, all_token_ids)
-            np.save(level_hashes_path, self.level_hashes)
-
-            self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
-
-    def _hash_level(self, level):
-        return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
-
-    def _annotate_level(self, level, include_sol_len=False):
-        '''
-        Returns a linguistic annotation of the level containing:
-        -width
-        -height
-        -number of targets / boxes
-        -proportion of empty space
-        -(optional) solution length
-        '''
-
-        width = len(level.split("\n")[0])
-        height = len(level.split("\n"))
-        num_targets = level.count("$") # oddly, this seems to be 4 for every single level in the dataset!
-        prop_empty = level.count("-") / (width * height)
-
-        annotation = f"Width: {width}\nHeight: {height}\nNumber of targets: {num_targets}\nProportion empty: {prop_empty}"
-
-        if include_sol_len:
-            level_state = State().stringInitialize(level.split("\n"))
-            solution, node, _ = self.solver.getSolution(level_state, maxIterations=50000)
-            if node.checkWin():
-                annotation += f"\nSolution length: {len(solution)}"
-            else:
-                annotation += f"\nSolution length: [Unknown]"
-
-        return annotation
-
-
-    def decode(self, token_ids):
-        '''
-        Decode an array of token IDs back into text. Depending on the data source, this may also apply
-        some post-processing to the text.
-        '''
-        text = super().decode(token_ids)
-
-        if self.data_source == "boxoban-text":
-            text = decode_boxoban_text(text)
-
-        text = text.replace("-", " ")
-
-        return text.strip()
-
-    def __getitem__(self, idx):
-        start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
-        return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
-
-    def __len__(self):
-        return len(self.all_token_ids) // self.chunk_size
-
-
 class AnnotatedSokobanDataset(GameDataset):
     '''
     Dataset for Sokoban levels for use with a language model
@@ -308,10 +83,9 @@ class AnnotatedSokobanDataset(GameDataset):
     Args:
         -tokenizer: Huggingface tokenizer for a specific language model
         -model_name: Name of the language model
-        -data_source: Which type dataset to use. Current options are "boxoban" (raw levels), "boxoban-chars"
-            (tokenizing each character separately), and "boxoban-text" (representing levels in natural language)
-        -annotation: What style of annotation to use. Current options are None (no annotation), "partial" 
-            (width, length, # of boxes, % whitespace), and "full" (partial annotation + solution length)
+        -level_key: Key in the dataframe containing the level string (can be either an ASCII or text-based representation)
+        -annotation_keys: Which keys in the dataframe to use as annotations
+        -holdout_solution_lens: Which solution lengths to hold out for evaluation
         -split Which split of the dataset to use (if available)
         -chunk_size: Number of tokens per item in the datatset
         -cache_dir: Path to dataset cache files
@@ -510,6 +284,20 @@ class AnnotatedSokobanDataset(GameDataset):
                     return False
             
         return True
+
+    def decode(self, token_ids):
+        '''
+        Decode an array of token IDs back into text. Depending on the data source, this may also apply
+        some post-processing to the text.
+        '''
+        text = super().decode(token_ids)
+
+        if self.data_source == "boxoban-text":
+            text = decode_boxoban_text(text)
+
+        text = text.replace("-", " ")
+
+        return text.strip()
 
     def __getitem__(self, idx):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
