@@ -19,6 +19,9 @@ VALID_DATA_SOURCES = ["boxoban", "boxoban-chars", "boxoban-text", "microban"]
 
 
 class GameDataset(Dataset):
+    '''Abstract dataset class for game levels. Each level's novelty is computed via hashing against the dataset.
+    Accuracy corresponds to whether computable metrics of a level match those in a user-provided prompt. THis normally
+    involves the level's 'solution'.'''
     def __init__(self):
         self.all_token_ids = []
         self.level_hashes = set({})
@@ -73,6 +76,7 @@ class GameDataset(Dataset):
         return torch.tensor(self.all_token_ids[start:end], dtype=torch.long)
 
 
+# DEPRECATED. For reference only. (For prompt-free generation, we can modify the new sokoban dataset class to exclude the prompt.)
 class SokobanLMDataset(GameDataset):
     '''
     Dataset for Sokoban levels for use with a language model
@@ -297,7 +301,21 @@ class SokobanLMDataset(GameDataset):
 
 
 class AnnotatedSokobanDataset(GameDataset):
-    """Assume we've pre-processed a sokoban dataset and saved it to a pandas dataframe."""
+    '''
+    Dataset for Sokoban levels for use with a language model
+    Assumes we've pre-processed a sokoban dataset and saved it to a pandas dataframe.
+
+    Args:
+        -tokenizer: Huggingface tokenizer for a specific language model
+        -model_name: Name of the language model
+        -data_source: Which type dataset to use. Current options are "boxoban" (raw levels), "boxoban-chars"
+            (tokenizing each character separately), and "boxoban-text" (representing levels in natural language)
+        -annotation: What style of annotation to use. Current options are None (no annotation), "partial" 
+            (width, length, # of boxes, % whitespace), and "full" (partial annotation + solution length)
+        -split Which split of the dataset to use (if available)
+        -chunk_size: Number of tokens per item in the datatset
+        -cache_dir: Path to dataset cache files
+    '''
     holdout_sol_lens = {25, 60, 100}
     n_descriptor_lines = 1  # sol-length
 
@@ -311,6 +329,7 @@ class AnnotatedSokobanDataset(GameDataset):
                  cache_dir="./caches"):
         
         super().__init__()
+        self.solver = EnhancedAStarAgent()
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
         self.df = pd.read_hdf(os.path.join(cache_dir, "boxoban_data.h5"), key="data")
@@ -363,7 +382,7 @@ class AnnotatedSokobanDataset(GameDataset):
                 else:
                     # Standard tokenization
 
-                    level = f"{tokenizer.bos_token}{level}{level}{tokenizer.eos_token}"
+                    level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}"
                     token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
