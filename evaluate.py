@@ -25,8 +25,12 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     # Generate samples
     if verbose: print("Generating samples...")
     with torch.no_grad():
+
+        contexts = torch.stack([tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device) for 
+                                _ in range(args.num_eval_samples)], axis=0).squeeze(1)
+        
         samples = model.generate(
-            tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device),
+            contexts,
             max_length=args.gen_len,
             temperature=args.gen_temp,
             do_sample=True,
@@ -34,19 +38,20 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             top_p=args.gen_top_p,
             typical_p=args.gen_typical_p,
             num_beams=args.gen_beams,
-            num_return_sequences=args.num_eval_samples,
+            num_return_sequences=1,
             pad_token_id=tokenizer.eos_token_id,
         )
 
     # Decode samples
-    samples = [tokenizer.decode(sample) for sample in samples]
+    samples = [tokenizer.decode(sample, skip_special_tokens=True) for sample in samples]
 
-    solutions = [dataset.get_solution(sample) for sample in samples]
-    accuracies = [dataset.is_accurate(sample, sol) for sample, sol in zip(samples, solutions)]
+    solutions = [dataset.get_solution(sample) for sample in tqdm(samples, desc="Computing solutions")]
+    novelties = [dataset.is_novel(sample) for sample in samples]
+    accuracies = [dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)]
 
     num_accurate = sum(accuracies)
     num_playable = sum([sol != False for sol in solutions])
-    num_novel = sum([dataset.is_novel(sample) for sample in samples])
+    num_novel = sum(novelties)
     num_unique = len(set(samples)) # could also do len(set([dataset._hash_level(sample) for sample in samples]))
 
     prop_accurate = num_accurate / len(samples)
@@ -56,7 +61,6 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
     if verbose:
         print("GENERATION PARAMETERS:")
-        # print(f"\tContext: {args.gen_context}")
         print(f"\tLength: {args.gen_len}")
         print(f"\tTemperature: {args.gen_temp}")
         print(f"\tTop-k: {args.gen_top_k}")
@@ -68,9 +72,9 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             print("_" * 80)
             print(sample)
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
-            print(f"Playable: {dataset.get_solution(sample, verbose=True) != False}")
-            print(f"Novel: {dataset.is_novel(sample)}")
-            print(f"Accurate: {dataset.is_accurate(sample, solutions[idx])}")
+            print(f"Playable: {solutions[idx] != False}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != False else ""))
+            print(f"Novel: {novelties[idx]}")
+            print(f"Accurate: {accuracies[idx]}")
 
         print("_" * 80)
         print(f"Proportion accurate: {prop_accurate}")
@@ -160,7 +164,7 @@ def main(args: Config):
 
     render_dir = os.path.join(output_dir, 'renders')
 
-    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=render_dir)
+    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=None)
 
 if __name__ == "__main__":
     main()

@@ -280,7 +280,7 @@ class AnnotatedSokobanDataset(GameDataset):
             elif key == "Solution len":
                 if solution is None:
                     exit("Solution must be provided to check solution length")
-                if int(value) != len(solution):
+                if solution is False or int(value) != len(solution):
                     return False
             
         return True
