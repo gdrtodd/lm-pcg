@@ -3,7 +3,7 @@ import math
 import os
 import multiprocessing as mp
 import random
-from typing import Iterable
+import typing
 
 import numpy as np
 import pandas as pd
@@ -316,14 +316,13 @@ class AnnotatedSokobanDataset(GameDataset):
         -chunk_size: Number of tokens per item in the datatset
         -cache_dir: Path to dataset cache files
     '''
-    holdout_sol_lens = {25, 60, 100}
-    n_descriptor_lines = 1  # sol-length
 
     def __init__(self,
                  tokenizer: AutoTokenizer,
                  model_name: str,
-                 data_source="boxoban",
-                 annotation_level="full",
+                 level_key: str="level",
+                 annotation_keys: typing.Optional[typing.List[str]]=None,
+                 holdout_solution_lens: typing.Optional[typing.List[int]]=None,
                  split="train",
                  chunk_size=128,
                  cache_dir="./caches"):
@@ -332,64 +331,72 @@ class AnnotatedSokobanDataset(GameDataset):
         self.solver = EnhancedAStarAgent()
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
-        self.df = pd.read_hdf(os.path.join(cache_dir, "boxoban_data.h5"), key="data")
-        self.level_hashes = set(self.df["level_hash"].values)
-        if data_source in ["boxoban", "boxoban-chars"]:
-            self.lvl_col = "level"
-        elif data_source == "boxoban-text":
-            self.lvl_col = "level_text"
+
+        self.level_key = level_key
+        self.annotation_keys = annotation_keys
+        self.holdout_solution_lens = holdout_solution_lens
+
+        # Filter out levels with solution lengths in the holdout set
+        complete_dataframe = pd.read_hdf(os.path.join(cache_dir, "boxoban_data.h5"), key="data")
+        if self.holdout_solution_lens is not None:
+            self.train_dataframe = complete_dataframe.loc[~complete_dataframe["solution_len"].isin(self.holdout_solution_lens)]
+            self.holdout_dataframe = complete_dataframe.loc[complete_dataframe["solution_len"].isin(self.holdout_solution_lens)]
+        else:
+            self.train_dataframe = complete_dataframe
+            self.holdout_dataframe = None
+
+        self.level_hashes = set(self.train_dataframe["level_hash"].values)
+
+        full_cache_dir = os.path.join(cache_dir,
+                                      f"model:{model_name}",
+                                      f"level_key:{level_key}",
+                                      f"annotation_keys:{annotation_keys}",
+                                      f"holdouts:{holdout_solution_lens}",
+                                      f"split:{split}",
+                                      f"chunk_size:{chunk_size}")
+
+        # Create output directory if it doesn't exist
+        if not os.path.exists(full_cache_dir):
+            os.makedirs(full_cache_dir)
 
         # Tokenize processed levels (or load tokens from disk if available).
-        token_ids_path = os.path.join(cache_dir, f"{model_name}_{data_source}-annotated_{split}_chunksize_{chunk_size}_all_token_ids.npy")
+        token_ids_path = os.path.join(full_cache_dir, "all_token_ids.npy")
 
         if os.path.isfile(token_ids_path):
-            print(f"Loading tokens from cache at {token_ids_path}...")
+            print(f"Loading tokens from cache...")
             self.all_token_ids = np.load(token_ids_path)
-            # self.level_hashes = np.load(level_hashes_path, allow_pickle=True).flatten()[0] # weird flattening seems to be necessary to recover set?
 
         else:
             # Optionally ensure each tile-character is tokenized individually
-            if data_source == "boxoban-chars":
-                tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
-                tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
+            # if data_source == "boxoban-chars":
+            #     tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
+            #     tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
 
             all_token_ids = []
 
-            for i, level in enumerate(tqdm(self.df[self.lvl_col], desc="Tokenizing levels")):
-            # for level in tqdm(self.all_levels, desc="Tokenizing levels"):
-                level = self._get_text(i)
-                # Skip empty level
-                if level == '':
-                    raise Exception
 
-                # We use the MD5 hash of the level as a unique identifier which is stable across runs
-                # level_hash = self._hash_level(level)
-                # if level_hash in self.level_hashes:
-                #     continue
+            for idx in tqdm(range(len(self.train_dataframe)), desc="Tokenizing levels"):
+                level = self.train_dataframe.iloc[idx][self.level_key]
+                annotation = self._gen_annotation(idx)
 
-                # self.level_hashes.add(level_hash)
-
-                if data_source == "boxoban-chars":
-                    # Manual tokenization to ensure each tile token is separate
-                    token_ids = []
-                    level_rows = level.split('\n')
-                    for row in level_rows:
-                        token_ids += [tile_encodings[c] for c in row] + [tile_encodings['\n']]
-                    token_ids = [tile_encodings[tokenizer.bos_token]] + token_ids + [tile_encodings[tokenizer.eos_token]]
-                    # Pad
-                    token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
-
-                else:
-                    # Standard tokenization
-
-                    level = f"{tokenizer.bos_token}{level}{tokenizer.eos_token}"
-                    token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
+                # Add annotation and tokenizer BOS / EOS tokens, then tokenize
+                full_level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
+                token_ids = self.tokenizer.encode(level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
 
+                # if data_source == "boxoban-chars":
+                #     # Manual tokenization to ensure each tile token is separate
+                #     token_ids = []
+                #     level_rows = level.split('\n')
+                #     for row in level_rows:
+                #         token_ids += [tile_encodings[c] for c in row] + [tile_encodings['\n']]
+                #     token_ids = [tile_encodings[tokenizer.bos_token]] + token_ids + [tile_encodings[tokenizer.eos_token]]
+                #     # Pad
+                #     token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
+
             # Save token ids and hashes to disk
             np.save(token_ids_path, all_token_ids)
-            # np.save(level_hashes_path, self.level_hashes)
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
@@ -403,8 +410,9 @@ class AnnotatedSokobanDataset(GameDataset):
           5. the level can be solved by an ASTAR agent
         If the level is playable, return the solution (return False otherwise).
         '''
-        # Remove prompt
-        level_lines = level.split("\n")[self.n_descriptor_lines:]
+        # Remove annotation
+        annotation_len = len(self.annotation_keys) if self.annotation_keys is not None else 0
+        level_lines = level.split("\n")[annotation_len:]
         level = "".join(level_lines)
 
         # Check if the level is rectangular
@@ -445,8 +453,16 @@ class AnnotatedSokobanDataset(GameDataset):
         level = self.df.iloc[i][self.lvl_col]
         return prompt + level
 
-    def _gen_prompt(self, sol_len):
-        return f"Solution length: {sol_len}\n"
+    def _gen_annotation(self, df_idx):
+
+        if self.annotation_keys is None:
+            return ""
+
+        annotation_values = [self.train_dataframe.iloc[df_idx][key] for key in self.annotation_keys]
+        annotation = "\n".join([f"{key.replace('_', ' ').title()}: {value}" for key, value in zip(self.annotation_keys, annotation_values)])
+        annotation += "\n"
+
+        return annotation
 
     def gen_context(self):
         sl = random.choice(list(self.holdout_sol_lens))
@@ -554,7 +570,7 @@ class LMazeLMDataset(GameDataset):
 
         width_i = len(lines[0])
         height_i = len(lines)
-        path_len_i = len(sol) - 1 if isinstance(sol, Iterable) else sol
+        path_len_i = len(sol) - 1 if isinstance(sol, typing.Iterable) else sol
         stats = {
             "width": width_i,
             "height": height_i,
@@ -622,3 +638,9 @@ class LMazeLMDataset(GameDataset):
             return False
 
         return [(x, y) for x, y in empty_tiles]
+
+if __name__ == '__main__':
+    b = AnnotatedSokobanDataset(None,
+                                "gpt2",
+                                annotation_keys=["width", "height", "solution_len"],
+                                holdout_solution_lens=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
