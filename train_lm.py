@@ -1,6 +1,7 @@
 import hydra
-import os
 import json
+import omegaconf
+import os
 import torch
 from tqdm import tqdm
 import shutil
@@ -92,20 +93,19 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
                                              temperature=args.gen_temp, do_sample=True)[0]
                     
-                    # sample = tokenizer.decode(outputs, skip_special_tokens=True)
-                    sample = dataset.decode(outputs)
+                    sample = tokenizer.decode(outputs, skip_special_tokens=True)
                     if not args.no_log: 
                         log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
-                    print(f"\nSample:\n{sample}\n")
-                    print(f"Novel: {dataset.is_novel(sample)}")
+
                     sol = dataset.get_solution(sample)
+                    accurate = dataset.is_accurate(sample, sol)
+
+                    print(f"\nSample:\n{sample}\n")
+                    print(f"Novel: {dataset.is_novel(sample)}")    
                     print(f"Playable: {sol != False}")
-                    accurate, stats = dataset.is_accurate(sample, sol)
                     print(f"Accurate: {accurate}")
-                    print(f"Stats: {json.dumps(stats, indent=4)}")
 
                 if global_step%args.save_freq == 0 and not args.no_log:
-                    # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
                     save_train_state(model, optimizer, global_step, output_dir)
 
                 if global_step%args.eval_freq == 0:
@@ -214,7 +214,8 @@ def main(args: Config):
             os.makedirs(output_dir)
 
         with open(os.path.join(output_dir, "config.json"), "w") as file:
-            json.dump(dict(args), file)
+            args_dict = {key: value if not isinstance(value, omegaconf.ListConfig) else list(value) for key, value in dict(args).items()}
+            json.dump(args_dict, file)
 
     train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args)
 

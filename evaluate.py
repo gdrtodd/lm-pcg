@@ -39,12 +39,13 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         )
 
     # Decode samples
-    samples = [dataset.decode(sample) for sample in samples]
+    samples = [tokenizer.decode(sample) for sample in samples]
 
-    sols = [dataset.get_solution(sample) for sample in samples]
-    accs, stats = zip(*[dataset.is_accurate(sample, sol) for sample, sol in zip(samples, sols)])
-    num_accurate = sum(accs)
-    num_playable = sum([s != False for s in sols])
+    solutions = [dataset.get_solution(sample) for sample in samples]
+    accuracies = [dataset.is_accurate(sample, sol) for sample, sol in zip(samples, solutions)]
+
+    num_accurate = sum(accuracies)
+    num_playable = sum([sol != False for sol in solutions])
     num_novel = sum([dataset.is_novel(sample) for sample in samples])
     num_unique = len(set(samples)) # could also do len(set([dataset._hash_level(sample) for sample in samples]))
 
@@ -69,7 +70,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
             print(f"Playable: {dataset.get_solution(sample, verbose=True) != False}")
             print(f"Novel: {dataset.is_novel(sample)}")
-            print(f"Accurate: {dataset.is_accurate(sample, sols[idx])}")
+            print(f"Accurate: {dataset.is_accurate(sample, solutions[idx])}")
 
         print("_" * 80)
         print(f"Proportion accurate: {prop_accurate}")
@@ -87,7 +88,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         wrapper = GymWrapperFactory()
         wrapper.build_gym_from_yaml('sokoban', os.path.join('gdy_games', 'sokoban.yaml'))
         env = gym.make('GDY-sokoban-v0')
-        for i, (sample, sol) in enumerate(zip(samples, sols)):
+        for i, (sample, sol) in enumerate(zip(samples, solutions)):
             lvl_render_dir = os.path.join(render_dir, f"lvl_{i}")
             if not os.path.isdir(lvl_render_dir):
                 os.makedirs(lvl_render_dir)

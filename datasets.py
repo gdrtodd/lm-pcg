@@ -457,7 +457,6 @@ class AnnotatedSokobanDataset(GameDataset):
         '''
         Generate the annotation (as a string) by formatting the supplied annotation values
         '''
-
         annotation = "\n".join([f"{key.replace('_', ' ').capitalize()}: {value}" for key, value in zip(self.annotation_keys, annotation_values)])
         annotation += "\n"
 
@@ -467,18 +466,50 @@ class AnnotatedSokobanDataset(GameDataset):
         '''
         Generate a random context for sampling by randomly selecting a level from the heldout set and returning its annotation
         '''
+
+        if self.annotation_keys is None:
+            return ""
+
         random_idx = np.random.randint(len(self.holdout_dataframe))
         annotation_values = [self.holdout_dataframe.iloc[random_idx][key] for key in self.annotation_keys]
 
         return self._format_annotation(annotation_values)
 
-    def is_accurate(self, level, sol):
-        prompt = level.split("\n")[:self.n_descriptor_lines]
-        trg_sol_len = int(prompt[0].split(":")[1])
-        stats = {'sol_len': None if not sol else len(sol)} 
-        if not sol:
-            return False, stats
-        return trg_sol_len == len(sol), stats
+    def is_accurate(self, annotated_level, solution=None):
+        '''
+        Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
+        '''
+
+        if self.annotation_keys is None:
+            return True
+
+        annotation = annotated_level.split("\n")[:len(self.annotation_keys)]
+        level = "\n".join(annotated_level.split("\n")[len(self.annotation_keys):])
+        width = len(level.split("\n")[0])
+        height = len(level.split("\n"))
+
+        for annotation_line in annotation:
+            key, value = annotation_line.split(": ")
+
+            if key == "Width" and int(value) != width:
+                return False
+
+            elif key == "Height" and int(value) != height:
+                return False
+
+            elif key == "Num targets" and (int(value) != level.count(".") or int(value) != level.count("$")):
+                return False
+
+            elif key == "Prop empty" and float(value) != level.count("-") / (width * height):
+                return False
+
+            elif key == "Solution len":
+                if solution is None:
+                    exit("Solution must be provided to check solution length")
+                if int(value) != len(solution):
+                    return False
+            
+        return True
 
     def __getitem__(self, idx):
         start, end = self.chunk_size * idx, self.chunk_size * (idx+1)
