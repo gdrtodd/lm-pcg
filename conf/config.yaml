@@ -42,6 +42,7 @@ gen_beams: 5
 gen_top_k: 50
 gen_top_p: 1.0
 gen_typical_p: 1.0
+sample_contexts: false
 
 
 hydra:

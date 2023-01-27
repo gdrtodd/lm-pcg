@@ -190,6 +190,11 @@ class AnnotatedSokobanDataset(GameDataset):
           5. the level can be solved by an ASTAR agent
         If the level is playable, return the solution (return False otherwise).
         '''
+
+        # If the level contains an invalid line, then it cannot be playable
+        if "Invalid line" in level:
+            return False
+
         # Remove annotation
         annotation_len = len(self.annotation_keys) if self.annotation_keys is not None else 0
         level_lines = level.split("\n")[annotation_len:]
@@ -255,6 +260,11 @@ class AnnotatedSokobanDataset(GameDataset):
         Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
         '''
 
+        # If the level contains an invalid line, then it cannot be accurate
+        if "Invalid line" in annotated_level:
+            return False
+
+        # If there are no annotation keys, then all levels are accurate
         if self.annotation_keys is None:
             return True
 

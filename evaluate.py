@@ -14,7 +14,7 @@ from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name
 
 
 def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
-        verbose=False, render_dir=None):
+             verbose=False, render_dir=None):
 
     # Map the model to the available device
     model.to(device)
@@ -26,8 +26,14 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     if verbose: print("Generating samples...")
     with torch.no_grad():
 
-        contexts = torch.stack([tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device) for 
-                                _ in range(args.num_eval_samples)], axis=0).squeeze(1)
+        if args.sample_contexts:
+            contexts = torch.stack([tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device) for 
+                                    _ in range(args.num_eval_samples)], axis=0).squeeze(1)
+            return_sequences = 1
+
+        else:
+            contexts = tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device)
+            return_sequences = args.num_eval_samples
         
         samples = model.generate(
             contexts,
@@ -38,7 +44,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             top_p=args.gen_top_p,
             typical_p=args.gen_typical_p,
             num_beams=args.gen_beams,
-            num_return_sequences=1,
+            num_return_sequences=return_sequences,
             pad_token_id=tokenizer.eos_token_id,
         )
 
