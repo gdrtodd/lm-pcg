@@ -12,6 +12,7 @@ class Config:
     game: str = "sokoban"
     level_key: str = "level"
     annotation_keys: typing.Optional[typing.List[str]] = None
+    num_annotation_buckets: typing.Optional[int] = None
     holdout_solution_lens: typing.Optional[typing.List[int]] = None
     chunk_size: int = 128
 

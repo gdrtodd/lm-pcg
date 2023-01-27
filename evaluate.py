@@ -3,6 +3,7 @@ import os
 from griddly import GymWrapperFactory
 import gym
 import hydra
+from multiprocessing import Pool
 from PIL import Image
 import torch
 from tqdm import tqdm
@@ -51,7 +52,18 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
 
-    solutions = [dataset.get_solution(sample) for sample in tqdm(samples, desc="Computing solutions")]
+    # Disable tokenizer parallelism before using multiprocessing to run AStar
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+    with Pool(4) as pool:
+        if verbose:
+            solutions = list(tqdm(pool.imap(dataset.get_solution, samples), total=len(samples), desc="Computing solutions"))
+        else:
+            solutions = list(pool.imap(dataset.get_solution, samples))
+
+    # Re-enable tokenizer parallelism
+    os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
     novelties = [dataset.is_novel(sample) for sample in samples]
     accuracies = [dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)]
 
@@ -159,6 +171,7 @@ def main(args: Config):
                                           args.model,
                                           level_key=args.level_key,
                                           annotation_keys=args.annotation_keys,
+                                          num_annotation_buckets=args.num_annotation_buckets,
                                           holdout_solution_lens=args.holdout_solution_lens,
                                           split="train",
                                           chunk_size=args.chunk_size)

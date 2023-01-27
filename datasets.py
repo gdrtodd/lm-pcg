@@ -2,6 +2,7 @@ import hashlib
 import math
 import os
 import multiprocessing as mp
+import numpy as np
 import random
 import typing
 
@@ -86,6 +87,7 @@ class AnnotatedSokobanDataset(GameDataset):
         -model_name: Name of the language model
         -level_key: Key in the dataframe containing the level string (can be either an ASCII or text-based representation)
         -annotation_keys: Which keys in the dataframe to use as annotations
+        -num_annotation_buckets: Number of buckets to sort each annotation value into (optional)
         -holdout_solution_lens: Which solution lengths to hold out for evaluation
         -split Which split of the dataset to use (if available)
         -chunk_size: Number of tokens per item in the datatset
@@ -97,6 +99,7 @@ class AnnotatedSokobanDataset(GameDataset):
                  model_name: str,
                  level_key: str="level",
                  annotation_keys: typing.Optional[typing.List[str]]=None,
+                 num_annotation_buckets: typing.Optional[int]=None,
                  holdout_solution_lens: typing.Optional[typing.List[int]]=None,
                  split="train",
                  chunk_size=128,
@@ -109,6 +112,7 @@ class AnnotatedSokobanDataset(GameDataset):
 
         self.level_key = level_key
         self.annotation_keys = annotation_keys
+        self.num_annotation_buckets = num_annotation_buckets
         self.holdout_solution_lens = holdout_solution_lens
 
         # Filter out levels with solution lengths in the holdout set
@@ -120,12 +124,20 @@ class AnnotatedSokobanDataset(GameDataset):
             self.train_dataframe = complete_dataframe
             self.holdout_dataframe = None
 
+        if self.num_annotation_buckets is not None:
+            self.annotation_hist_values, self.annotation_hist_bins = {}, {}
+            for annotation_key in self.annotation_keys:
+                hist_values, hist_bins = np.histogram(self.train_dataframe[annotation_key].values, bins=self.num_annotation_buckets)
+                self.annotation_hist_values[annotation_key] = hist_values
+                self.annotation_hist_bins[annotation_key] = hist_bins
+
         self.level_hashes = set(self.train_dataframe["level_hash"].values)
 
         full_cache_dir = os.path.join(cache_dir,
                                       f"model:{model_name}",
                                       f"level_key:{level_key}",
                                       f"annotation_keys:{annotation_keys}",
+                                      f"num_annotation_buckets:{num_annotation_buckets}",
                                       f"holdouts:{holdout_solution_lens}",
                                       f"split:{split}",
                                       f"chunk_size:{chunk_size}")
@@ -224,9 +236,9 @@ class AnnotatedSokobanDataset(GameDataset):
 
         # Check if the level can be solved by an ASTAR agent
         level_state = State().stringInitialize(level_lines)
-        solution, node, iters = self.solver.getSolution(level_state, maxIterations=50000)
+        solution, node, iters = self.solver.getSolution(level_state, maxIterations=150000)
         if not node.checkWin():
-            if verbose: print("--Level cannot be solved (... in 50k steps)--")
+            if verbose: print("--Level cannot be solved (... in 150k steps)--")
             return False
         elif verbose:
             print(f"++Level can be solved in {len(solution)} moves++")
@@ -237,7 +249,32 @@ class AnnotatedSokobanDataset(GameDataset):
         '''
         Generate the annotation (as a string) by formatting the supplied annotation values
         '''
-        annotation = "\n".join([f"{key.replace('_', ' ').capitalize()}: {value}" for key, value in zip(self.annotation_keys, annotation_values)])
+
+        annotation_lines = []
+
+        for key, value in zip(self.annotation_keys, annotation_values):
+
+            # Format the value based on whether we're bucketing the annotation values
+            if self.num_annotation_buckets is not None:
+                lower_bin = self.annotation_hist_bins[key][self.annotation_hist_bins[key] <= value].max()
+
+                # It's possible for the value to be the max in the entire histogram, in which case it's upper bin is itself
+                if value == self.annotation_hist_bins[key].max():
+                    upper_bin = value
+                else:
+                    upper_bin = self.annotation_hist_bins[key][self.annotation_hist_bins[key] > value].min()
+
+                value = f"{lower_bin:.2f} to {upper_bin:.2f}"
+
+            else:
+                value = f"{value:.2f}"
+
+            # Format the key
+            key = key.replace('_', ' ').capitalize()
+
+            annotation_lines.append(f"{key}: {value}")
+
+        annotation = "\n".join(annotation_lines)
         annotation += "\n"
 
         return annotation
@@ -255,7 +292,7 @@ class AnnotatedSokobanDataset(GameDataset):
 
         return self._format_annotation(annotation_values)
 
-    def is_accurate(self, annotated_level, solution=None):
+    def is_accurate(self, annotated_level, solution=False):
         '''
         Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
         '''
@@ -270,28 +307,24 @@ class AnnotatedSokobanDataset(GameDataset):
 
         annotation = annotated_level.split("\n")[:len(self.annotation_keys)]
         level = "\n".join(annotated_level.split("\n")[len(self.annotation_keys):])
-        width = len(level.split("\n")[0])
-        height = len(level.split("\n"))
+
+        level_info = {"width": len(level.split("\n")[0]),
+                      "height": len(level.split("\n")),
+                      "num_targets": level.count(".") if level.count(".") == level.count("$") else None,
+                      "prop_empty": level.count("-") / (len(level.split("\n")[0]) * len(level.split("\n"))),
+                      "solution_len": len(solution) if solution is not False else None}
 
         for annotation_line in annotation:
             key, value = annotation_line.split(": ")
 
-            if key == "Width" and int(value) != width:
-                return False
+            observed_value = level_info[key.lower().replace(" ", "_")]
+            if self.num_annotation_buckets is not None:
+                lower, upper = [float(val) for val in value.split(" to ")]
+                if not (lower <= observed_value < upper):
+                    return False
 
-            elif key == "Height" and int(value) != height:
-                return False
-
-            elif key == "Num targets" and (int(value) != level.count(".") or int(value) != level.count("$")):
-                return False
-
-            elif key == "Prop empty" and float(value) != level.count("-") / (width * height):
-                return False
-
-            elif key == "Solution len":
-                if solution is None:
-                    exit("Solution must be provided to check solution length")
-                if solution is False or int(value) != len(solution):
+            else:
+                if float(value) != observed_value:
                     return False
             
         return True

@@ -12,6 +12,7 @@ defaults:
 game: sokoban
 level_key: level
 annotation_keys: null
+num_annotation_buckets: null
 holdout_solution_lens: null
 chunk_size: 128
 

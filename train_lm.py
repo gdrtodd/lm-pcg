@@ -174,6 +174,7 @@ def main(args: Config):
                                           args.model,
                                           level_key=args.level_key,
                                           annotation_keys=args.annotation_keys,
+                                          num_annotation_buckets=args.num_annotation_buckets,
                                           holdout_solution_lens=args.holdout_solution_lens,
                                           split="train",
                                           chunk_size=args.chunk_size)
