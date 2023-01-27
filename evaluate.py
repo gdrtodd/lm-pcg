@@ -43,7 +43,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         )
 
     # Decode samples
-    samples = [tokenizer.decode(sample, skip_special_tokens=True) for sample in samples]
+    samples = [dataset.decode(sample) for sample in samples]
 
     solutions = [dataset.get_solution(sample) for sample in tqdm(samples, desc="Computing solutions")]
     novelties = [dataset.is_novel(sample) for sample in samples]

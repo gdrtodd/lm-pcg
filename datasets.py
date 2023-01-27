@@ -49,6 +49,7 @@ class GameDataset(Dataset):
         # Get first position in sample corresponding to an EOS token, and truncate the sample accordingly.
         # (We're basically being forgiving to models that don't pad the end of each sample with unbroken EOS's)
         eos_pos = torch.where(token_ids == self.tokenizer.encode(self.tokenizer.eos_token)[0])
+
         # If there are no EOS tokens, just use the whole sample
         if len(eos_pos[0]) == 0:
             eos_pos = len(token_ids)
@@ -292,7 +293,7 @@ class AnnotatedSokobanDataset(GameDataset):
         '''
         text = super().decode(token_ids)
 
-        if self.data_source == "boxoban-text":
+        if self.level_key == "level_text":
             text = decode_boxoban_text(text)
 
         text = text.replace("-", " ")

@@ -93,7 +93,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
                                              temperature=args.gen_temp, do_sample=True)[0]
                     
-                    sample = tokenizer.decode(outputs, skip_special_tokens=True)
+                    sample = dataset.decode(outputs)
                     if not args.no_log: 
                         log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
 
