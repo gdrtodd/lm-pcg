@@ -287,8 +287,14 @@ class AnnotatedSokobanDataset(GameDataset):
         if self.annotation_keys is None:
             return ""
 
-        random_idx = np.random.randint(len(self.holdout_dataframe))
-        annotation_values = [self.holdout_dataframe.iloc[random_idx][key] for key in self.annotation_keys]
+        # Source annotations from train or test set
+        if self.holdout_dataframe is None:
+            df = self.train_dataframe
+        else:
+            df = self.holdout_dataframe
+
+        random_idx = np.random.randint(len(df))
+        annotation_values = [df.iloc[random_idx][key] for key in self.annotation_keys]
 
         return self._format_annotation(annotation_values)
 
