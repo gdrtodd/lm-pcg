@@ -287,8 +287,14 @@ class AnnotatedSokobanDataset(GameDataset):
         if self.annotation_keys is None:
             return ""
 
-        random_idx = np.random.randint(len(self.holdout_dataframe))
-        annotation_values = [self.holdout_dataframe.iloc[random_idx][key] for key in self.annotation_keys]
+        # Source annotations from train or test set
+        if self.holdout_dataframe is None:
+            df = self.train_dataframe
+        else:
+            df = self.holdout_dataframe
+
+        random_idx = np.random.randint(len(df))
+        annotation_values = [df.iloc[random_idx][key] for key in self.annotation_keys]
 
         return self._format_annotation(annotation_values)
 
@@ -308,10 +314,17 @@ class AnnotatedSokobanDataset(GameDataset):
         annotation = annotated_level.split("\n")[:len(self.annotation_keys)]
         level = "\n".join(annotated_level.split("\n")[len(self.annotation_keys):])
 
+        n_tiles = len(level.split("\n")[0]) * len(level.split("\n"))
+        if n_tiles == 0:
+            # Avoid division by zero
+            prop_empty = None
+        else:
+            prop_empty = level.count("-") / n_tiles
+
         level_info = {"width": len(level.split("\n")[0]),
                       "height": len(level.split("\n")),
                       "num_targets": level.count(".") if level.count(".") == level.count("$") else None,
-                      "prop_empty": level.count("-") / (len(level.split("\n")[0]) * len(level.split("\n"))),
+                      "prop_empty": prop_empty,
                       "solution_len": len(solution) if solution is not False else None}
 
         for annotation_line in annotation:
@@ -323,6 +336,8 @@ class AnnotatedSokobanDataset(GameDataset):
 
             if self.num_annotation_buckets is not None:
                 lower, upper = [float(val) for val in value.split(" to ")]
+                if observed_value is None:
+                    return False
                 if not (lower <= observed_value < upper):
                     return False
 
