@@ -318,6 +318,9 @@ class AnnotatedSokobanDataset(GameDataset):
             key, value = annotation_line.split(": ")
 
             observed_value = level_info[key.lower().replace(" ", "_")]
+            if observed_value is None:
+                return False
+
             if self.num_annotation_buckets is not None:
                 lower, upper = [float(val) for val in value.split(" to ")]
                 if not (lower <= observed_value < upper):
