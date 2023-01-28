@@ -319,7 +319,7 @@ class AnnotatedSokobanDataset(GameDataset):
             # Avoid division by zero
             prop_empty = None
         else:
-            prop_empty = level.count("-") / n_tiles
+            prop_empty = level.count(" ") / n_tiles
 
         level_info = {"width": len(level.split("\n")[0]),
                       "height": len(level.split("\n")),
@@ -332,20 +332,20 @@ class AnnotatedSokobanDataset(GameDataset):
 
             observed_value = level_info[key.lower().replace(" ", "_")]
             if observed_value is None:
-                return False
+                return False, level_info
 
             if self.num_annotation_buckets is not None:
                 lower, upper = [float(val) for val in value.split(" to ")]
                 if observed_value is None:
-                    return False
+                    return False, level_info
                 if not (lower <= observed_value < upper):
-                    return False
+                    return False, level_info
 
             else:
                 if float(value) != observed_value:
-                    return False
+                    return False, level_info
             
-        return True
+        return True, level_info
 
     def decode(self, token_ids):
         '''

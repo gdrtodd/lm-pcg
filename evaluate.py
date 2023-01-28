@@ -52,20 +52,23 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
 
-    # Disable tokenizer parallelism before using multiprocessing to run AStar
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    # # Disable tokenizer parallelism before using multiprocessing to run AStar
+    # os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-    with Pool(4) as pool:
-        if verbose:
-            solutions = list(tqdm(pool.imap(dataset.get_solution, samples), total=len(samples), desc="Computing solutions"))
-        else:
-            solutions = list(pool.imap(dataset.get_solution, samples))
+    # with Pool(1) as pool:
+    #     if verbose:
+    #         solutions = list(tqdm(pool.imap(dataset.get_solution, samples), total=len(samples), desc="Computing solutions"))
+    #     else:
+    #         solutions = list(pool.imap(dataset.get_solution, samples))
 
-    # Re-enable tokenizer parallelism
-    os.environ["TOKENIZERS_PARALLELISM"] = "true"
+    # # Re-enable tokenizer parallelism
+    # os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
+    if verbose: print("Computing solutions...")
+    solutions = [dataset.get_solution(sample) for sample in samples]
 
     novelties = [dataset.is_novel(sample) for sample in samples]
-    accuracies = [dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)]
+    accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
 
     num_accurate = sum(accuracies)
     num_playable = sum([sol != False for sol in solutions])
@@ -93,6 +96,8 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             print(f"Playable: {solutions[idx] != False}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != False else ""))
             print(f"Novel: {novelties[idx]}")
             print(f"Accurate: {accuracies[idx]}")
+            for key in args.annotation_keys:
+                print(f"\t{key}: {infos[idx][key]}")
 
         print("_" * 80)
         print(f"Proportion accurate: {prop_accurate}")
