@@ -11,7 +11,7 @@ from conf.config import Config
 
 from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
 
 from datasets import GameDataset, AnnotatedSokobanDataset, LMazeLMDataset
 from evaluate import evaluate
@@ -149,6 +149,7 @@ def main(args: Config):
 
     # Map from model names to the load string transformers expects
     model_mapping = {"gpt2": "gpt2",
+                     "gpt2-untrained": "gpt2-untrained",
                      "codeparrot": "lvwerra/codeparrot",
                      "java-gpt2": "microsoft/CodeGPT-small-java-adaptedGPT2",
                      "incoder-1B": "facebook/incoder-1B",
@@ -159,9 +160,51 @@ def main(args: Config):
 
     # Instantiate the tokenizer based on the model's
     model_name = model_mapping[args.model]
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.add_special_tokens({"pad_token": "PAD",
-                                  "bos_token": "START"})
+
+    if args.model == "gpt2-untrained":
+        tokenizer_dir = os.path.join("./caches", "gpt2-custom-tokenizer", args.game)
+
+        # Load the custom tokenizer if it exists
+        if os.path.exists(os.path.join(tokenizer_dir, "vocab.json")) and os.path.exists(os.path.join(tokenizer_dir, "merges.txt")):
+            print(f"Loading tokenizer from cache at {tokenizer_dir}...")
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
+
+            tokenizer.add_special_tokens({"pad_token": "<pad>",
+                                          "bos_token": "<s>",
+                                          "eos_token": "</s>"})
+
+        else:
+            os.makedirs(tokenizer_dir, exist_ok=True)
+
+            if args.game == "sokoban":
+                boxoban_levels_dir = os.path.join("./data", "boxoban-medium", "train")
+                boxoban_level_files = [os.path.join(boxoban_levels_dir, file) for file in os.listdir(boxoban_levels_dir) if file.endswith(".txt")]
+                microban_level_files = [os.path.join("./data", "microban", file) for file in os.listdir(os.path.join("./data", "microban")) if file.endswith(".txt")]
+
+                tokenizer_train_levels = [open(file, "r").read() for file in boxoban_level_files + microban_level_files]
+
+            else:
+                raise NotImplementedError
+
+            print("Training GPT2 tokenizer from scratch...")
+            old_tokenizer = AutoTokenizer.from_pretrained("gpt2")
+            tokenizer = old_tokenizer.train_new_from_iterator(tokenizer_train_levels,
+                                                              length=len(tokenizer_train_levels),
+                                                              vocab_size=10000,
+                                                              new_special_tokens=["<s>", "</s>", "<pad>"])
+
+            tokenizer.save_pretrained(tokenizer_dir)
+
+            tokenizer.add_special_tokens({"pad_token": "<pad>",
+                                          "bos_token": "<s>",
+                                          "eos_token": "</s>"})
+
+
+
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer.add_special_tokens({"pad_token": "PAD",
+                                    "bos_token": "START"})
 
     # Instantiate the dataset
     if args.game == "sokoban":
@@ -183,8 +226,14 @@ def main(args: Config):
         raise NotImplementedError
 
     # Initialize the modelm data collator, data loader, and optimizer
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    model.resize_token_embeddings(len(tokenizer))
+    if args.model == "gpt2-untrained":
+        gpt2_config = AutoConfig.from_pretrained("gpt2")
+        model = AutoModelForCausalLM.from_config(gpt2_config)
+        model.resize_token_embeddings(len(tokenizer))
+
+    else:
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model.resize_token_embeddings(len(tokenizer))
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
     data_loader = DataLoader(dataset, collate_fn=data_collator, batch_size=args.batch_size, shuffle=True, num_workers=4)

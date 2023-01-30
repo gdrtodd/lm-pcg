@@ -258,7 +258,7 @@ class AnnotatedSokobanDataset(GameDataset):
             if self.num_annotation_buckets is not None:
                 lower_bin = self.annotation_hist_bins[key][self.annotation_hist_bins[key] <= value].max()
 
-                # It's possible for the value to be the max in the entire histogram, in which case it's upper bin is itself
+                # It's possible for the value to be the max in the entire histogram, in which case its upper bin is itself
                 if value == self.annotation_hist_bins[key].max():
                     upper_bin = value
                 else:
