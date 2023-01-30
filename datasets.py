@@ -49,7 +49,7 @@ class GameDataset(Dataset):
         '''
         # Get first position in sample corresponding to an EOS token, and truncate the sample accordingly.
         # (We're basically being forgiving to models that don't pad the end of each sample with unbroken EOS's)
-        eos_pos = torch.where(token_ids == self.tokenizer.encode(self.tokenizer.eos_token)[0])
+        eos_pos = torch.where(token_ids == self.tokenizer.eos_token_id)
 
         # If there are no EOS tokens, just use the whole sample
         if len(eos_pos[0]) == 0:
@@ -57,7 +57,7 @@ class GameDataset(Dataset):
         else:
             eos_pos = eos_pos[0][0].item()
         token_ids = token_ids[:eos_pos]
-
+        
         text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
 
         return text
@@ -303,16 +303,9 @@ class AnnotatedSokobanDataset(GameDataset):
         Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
         '''
 
-        # If the level contains an invalid line, then it cannot be accurate
-        if "Invalid line" in annotated_level:
-            return False
-
-        # If there are no annotation keys, then all levels are accurate
-        if self.annotation_keys is None:
-            return True
-
-        annotation = annotated_level.split("\n")[:len(self.annotation_keys)]
-        level = "\n".join(annotated_level.split("\n")[len(self.annotation_keys):])
+        annotation_len = len(self.annotation_keys) if self.annotation_keys is not None else 0
+        annotation = annotated_level.split("\n")[:annotation_len]
+        level = "\n".join(annotated_level.split("\n")[annotation_len:])
 
         n_tiles = len(level.split("\n")[0]) * len(level.split("\n"))
         if n_tiles == 0:
@@ -326,6 +319,14 @@ class AnnotatedSokobanDataset(GameDataset):
                       "num_targets": level.count(".") if level.count(".") == level.count("$") else None,
                       "prop_empty": prop_empty,
                       "solution_len": len(solution) if solution is not False else None}
+
+        # If the level contains an invalid line, then it cannot be accurate
+        if "Invalid line" in annotated_level:
+            return False, level_info
+
+        # If there are no annotation keys, then all levels are accurate
+        if self.annotation_keys is None:
+            return True, level_info
 
         for annotation_line in annotation:
             key, value = annotation_line.split(": ")

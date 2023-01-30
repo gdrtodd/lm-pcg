@@ -90,9 +90,19 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     inputs = tokenizer(tokenizer.bos_token + context, return_tensors="pt").input_ids
                     inputs = inputs.to(device)
 
-                    outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
-                                             temperature=args.gen_temp, do_sample=True)[0]
-                    
+                    outputs = model.generate(
+                        inputs,
+                        max_length=args.gen_len,
+                        temperature=args.gen_temp,
+                        do_sample=True,
+                        top_k=args.gen_top_k,
+                        top_p=args.gen_top_p,
+                        typical_p=args.gen_typical_p,
+                        num_beams=args.gen_beams,
+                        num_return_sequences=1,
+                        pad_token_id=tokenizer.eos_token_id,
+                    )[0]
+
                     sample = dataset.decode(outputs)
                     if not args.no_log: 
                         log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
