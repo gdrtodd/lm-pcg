@@ -65,6 +65,8 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     prop_accurate = num_accurate / len(samples)
     prop_playable = num_playable / len(samples)
     prop_novel = num_novel / len(samples)
+
+    if verbose: print("Computing diversity...")
     diversity = dataset.get_diversity(samples)
 
     if verbose:

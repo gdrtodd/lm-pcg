@@ -15,6 +15,7 @@ annotation_keys: null
 num_annotation_buckets: null
 holdout_solution_lens: null
 chunk_size: 128
+novelty_threshold: 5
 
 # Model args
 model: java-gpt2
@@ -37,7 +38,6 @@ no_log: false
 num_eval_samples: 20
 gen_freq: 500
 gen_len: 128
-# gen_context: ''
 gen_temp: 1
 gen_beams: 5
 gen_top_k: 50
@@ -51,20 +51,21 @@ hydra:
     params:
       # We will sweep over these parameters when the `--multirun` flag is used.
 
-      seed: 0, 1, 2
+      batch_size: 64
+      epochs: 50
+      num_eval_samples: 100
 
-      # model: gpt2, codeparrot, java-gpt2, incoder-1B, incoder-6B 
-      model: java-gpt2
+      seed: 0, 1, 2, 3, 4
+      model: gpt2-untrained, gpt2, java-gpt2
+      learning_rate: 0.00001, 0.0001, 0.001
+      # warmup_proportion: 0.0002, 0.002, 0.02
+      # weight_decay: 0.001, 0.01, 0.1
 
-      data_source: null, boxoban-chars, boxoban-text, l_maze
-      # data_source: boxoboan-chars
-
-      # chunk_size: 128, 256, 512
 
   # SLURM-specific arguments
   launcher:
     tasks_per_node: 1
-    cpus_per_task: 10
+    cpus_per_task: 1
     gpus_per_node: 1
     timeout_min: 1440
     mem_gb: 30
