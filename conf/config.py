@@ -15,6 +15,7 @@ class Config:
     num_annotation_buckets: typing.Optional[int] = None
     holdout_solution_lens: typing.Optional[typing.List[int]] = None
     chunk_size: int = 128
+    novelty_threshold: int = 5
 
     # Model
     model: str = "gpt2"  # choices=["gpt2", "codeparrot", "java-gpt2", "incoder-1B", "incoder-6B"]
@@ -37,7 +38,6 @@ class Config:
     num_eval_samples: int = 20
     gen_freq: int = 500
     gen_len: int = 128
-    # gen_context: str = ""
     gen_temp: float = 1
     gen_beams: int = 5
     gen_top_k: int = 50

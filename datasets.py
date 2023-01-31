@@ -104,12 +104,14 @@ class AnnotatedSokobanDataset(GameDataset):
                  holdout_solution_lens: typing.Optional[typing.List[int]]=None,
                  split="train",
                  chunk_size=128,
+                 novelty_threshold=5,
                  cache_dir="./caches"):
         
         super().__init__()
         self.solver = EnhancedAStarAgent()
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
+        self.novelty_threshold = novelty_threshold
 
         self.level_key = level_key
         self.annotation_keys = annotation_keys
@@ -349,11 +351,28 @@ class AnnotatedSokobanDataset(GameDataset):
             
         return True, level_info
 
-    def get_diversity(self, levels, threshold=5, clique_limit=1000000):
+    def is_novel(self, annotated_level):
+        '''
+        Returns whether a level is novel, defined as having a minimum edit distance of 'self.novelty_threshold' from all
+        levels in the train dataset
+        '''
+
+        annotation_len = len(self.annotation_keys) if self.annotation_keys is not None else 0
+        level = "\n".join(annotated_level.split("\n")[annotation_len:])
+
+        train_levels = self.train_dataframe[self.level_key].tolist()
+
+        for train_level in train_levels:
+            if distance(level, train_level) < self.novelty_threshold:
+                return False
+
+        return True
+
+    def get_diversity(self, levels, clique_limit=1000000):
         '''
         Returns the 'diversity' of a set of levels, defined as the size of the largest subset of levels
-        that are all at least 'threshold' edit distance away from each other. We compute this by 
-        constructing a graph where levels are adjacent if their edit distance is at least the threshold,
+        that are all at least 'self.novelty_threshold' edit distance away from each other. We compute this 
+        by constructing a graph where levels are adjacent if their edit distance is at least the threshold,
         and then finding the size of the largest clique in the graph.
         '''
 
@@ -363,7 +382,7 @@ class AnnotatedSokobanDataset(GameDataset):
         edges = []
         for i in range(len(levels)):
             for j in range(i+1, len(levels)):
-                if distance(levels[i], levels[j]) >= threshold:
+                if distance(levels[i], levels[j]) >= self.novelty_threshold:
                     edges.append((i, j))
 
         graph.add_edges_from(edges)

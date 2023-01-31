@@ -52,18 +52,6 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
 
-    # # Disable tokenizer parallelism before using multiprocessing to run AStar
-    # os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-    # with Pool(1) as pool:
-    #     if verbose:
-    #         solutions = list(tqdm(pool.imap(dataset.get_solution, samples), total=len(samples), desc="Computing solutions"))
-    #     else:
-    #         solutions = list(pool.imap(dataset.get_solution, samples))
-
-    # # Re-enable tokenizer parallelism
-    # os.environ["TOKENIZERS_PARALLELISM"] = "true"
-
     if verbose: print("Computing solutions...")
     solutions = [dataset.get_solution(sample) for sample in samples]
 
@@ -73,12 +61,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     num_accurate = sum(accuracies)
     num_playable = sum([sol != False for sol in solutions])
     num_novel = sum(novelties)
-    num_unique = len(set(samples)) # could also do len(set([dataset._hash_level(sample) for sample in samples]))
 
     prop_accurate = num_accurate / len(samples)
     prop_playable = num_playable / len(samples)
     prop_novel = num_novel / len(samples)
-    prop_unique = num_unique / len(samples)
+    diversity = dataset.get_diversity(samples)
 
     if verbose:
         print("GENERATION PARAMETERS:")
@@ -103,7 +90,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"Proportion accurate: {prop_accurate}")
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
-        print(f"Proportion unique: {prop_unique}")
+        print(f"Diversity (lower bound): {diversity}")
 
     model.train()
 
@@ -149,7 +136,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
                     duration=300, loop=0)
         env.close()
             
-    return prop_accurate, prop_playable, prop_novel, prop_unique
+    return prop_accurate, prop_playable, prop_novel, diversity
 
 @hydra.main(config_path="conf", config_name="config")
 def main(args: Config):

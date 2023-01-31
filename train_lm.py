@@ -120,17 +120,18 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 if global_step%args.eval_freq == 0:
                     print(f"\nGenerating samples for evaluation at step {global_step}...")
-                    prop_accurate, prop_playable, prop_novel, prop_unique = evaluate(model, device, tokenizer, dataset,  args)
+                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset,  args)
 
                     print("Proportion of accurate levels:", prop_accurate)
                     print("Proportion of playable levels:", prop_playable)
                     print("Proportion of novel levels:", prop_novel)
-                    print("Proportion of unique levels:", prop_unique)
+                    print("Diversity (lower bound):", diversity)
 
                     if not args.no_log:
                         log_writer.add_scalar("eval/prop_playable", prop_playable, global_step)
                         log_writer.add_scalar("eval/prop_novel", prop_novel, global_step)
                         log_writer.add_scalar("eval/prop_accurate", prop_accurate, global_step)
+                        log_writer.add_scalar("eval/diversity", diversity, global_step)
 
             # Reset the data loader iterator and save at the end of each epoch
             data_loader_iter = iter(data_loader)
@@ -225,6 +226,7 @@ def main(args: Config):
                                           num_annotation_buckets=args.num_annotation_buckets,
                                           holdout_solution_lens=args.holdout_solution_lens,
                                           split="train",
+                                          novelty_threshold=args.novelty_threshold,
                                           chunk_size=args.chunk_size)
 
     elif args.game == "l_maze":
