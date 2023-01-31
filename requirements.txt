@@ -1,5 +1,6 @@
 griddly
 levenshtein
+networkx
 pandas
 tables
 tensorboard

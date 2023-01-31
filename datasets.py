@@ -1,7 +1,8 @@
 import hashlib
-import math
+from Levenshtein import distance, hamming
 import os
 import multiprocessing as mp
+import networkx as nx
 import numpy as np
 import random
 import typing
@@ -347,6 +348,41 @@ class AnnotatedSokobanDataset(GameDataset):
                     return False, level_info
             
         return True, level_info
+
+    def get_diversity(self, levels, threshold=5, clique_limit=1000000):
+        '''
+        Returns the 'diversity' of a set of levels, defined as the size of the largest subset of levels
+        that are all at least 'threshold' edit distance away from each other. We compute this by 
+        constructing a graph where levels are adjacent if their edit distance is at least the threshold,
+        and then finding the size of the largest clique in the graph.
+        '''
+
+        graph = nx.Graph()
+        graph.add_nodes_from(range(len(levels)))
+
+        edges = []
+        for i in range(len(levels)):
+            for j in range(i+1, len(levels)):
+                if distance(levels[i], levels[j]) >= threshold:
+                    edges.append((i, j))
+
+        graph.add_edges_from(edges)
+
+        biggest_clique = -1
+        num_cliques = 0
+
+        for clique in nx.find_cliques(graph):
+            if len(clique) > biggest_clique:
+                biggest_clique = len(clique)
+            num_cliques += 1
+
+            if num_cliques > clique_limit:
+                break
+
+
+        diversity = biggest_clique / len(levels)
+
+        return diversity
 
     def decode(self, token_ids):
         '''
