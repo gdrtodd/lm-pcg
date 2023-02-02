@@ -425,8 +425,6 @@ class AnnotatedSokobanDataset(GameDataset):
         if self.level_key == "level_text":
             text = decode_boxoban_text(text)
 
-        text = text.replace("-", " ")
-
         return text.strip()
 
     def __getitem__(self, idx):

@@ -106,12 +106,12 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                     sample = dataset.decode(outputs)
                     if not args.no_log: 
-                        log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
+                        log_writer.add_text("eval/random_sample", f"```\n{sample.replace('-', ' ')}\n```", global_step)
 
                     solution = dataset.get_solution(sample)
                     accurate, info = dataset.is_accurate(sample, solution)
 
-                    print(f"\nSample:\n{sample}\n")
+                    print(f"\nSample:\n{sample.replace('-', ' ')}\n")
                     print(f"Novel: {dataset.is_novel(sample)}")    
                     print(f"Playable: {solution != False}")
                     print(f"Accurate: {accurate}")
