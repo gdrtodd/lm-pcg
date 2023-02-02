@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from conf.config import Config
 
+from transformers import set_seed
 from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
@@ -152,11 +153,11 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
 @hydra.main(version_base="1.2.0", config_path="conf", config_name="config")
 def main(args: Config):
+
+    # Set the seed
+    set_seed(args.seed)
+
     run_name = get_run_name(args)
-
-    # wandb.init(project="game-generation-modeling", entity="gdrtodd", config={}, name=run_name)
-    # wandb.config.update(args)
-
 
     # Map from model names to the load string transformers expects
     model_mapping = {"gpt2": "gpt2",
@@ -227,7 +228,9 @@ def main(args: Config):
                                           holdout_solution_lens=args.holdout_solution_lens,
                                           split="train",
                                           novelty_threshold=args.novelty_threshold,
-                                          chunk_size=args.chunk_size)
+                                          sample_prop=args.sample_prop,
+                                          chunk_size=args.chunk_size,
+                                          seed=args.seed)
 
     elif args.game == "l_maze":
         dataset = LMazeLMDataset(tokenizer,

@@ -16,6 +16,7 @@ class Config:
     holdout_solution_lens: typing.Optional[typing.List[int]] = None
     chunk_size: int = 128
     novelty_threshold: int = 5
+    sample_prop: typing.Optional[float] = None
 
     # Model
     model: str = "gpt2"  # choices=["gpt2", "codeparrot", "java-gpt2", "incoder-1B", "incoder-6B"]

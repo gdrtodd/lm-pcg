@@ -16,6 +16,7 @@ num_annotation_buckets: null
 holdout_solution_lens: null
 chunk_size: 128
 novelty_threshold: 5
+sample_prop: null
 
 # Model args
 model: java-gpt2

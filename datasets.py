@@ -90,9 +90,12 @@ class AnnotatedSokobanDataset(GameDataset):
         -annotation_keys: Which keys in the dataframe to use as annotations
         -num_annotation_buckets: Number of buckets to sort each annotation value into (optional)
         -holdout_solution_lens: Which solution lengths to hold out for evaluation
-        -split Which split of the dataset to use (if available)
+        -split: Which split of the dataset to use (if available)
+        -novelty_threshold: the minimum edit distance between two levels to consider them distinct
+        -sample_prop: proportion of the dataset to sample (set to None to use the whole dataset)
         -chunk_size: Number of tokens per item in the datatset
         -cache_dir: Path to dataset cache files
+        -seed: random seed
     '''
 
     def __init__(self,
@@ -105,6 +108,8 @@ class AnnotatedSokobanDataset(GameDataset):
                  split="train",
                  chunk_size=128,
                  novelty_threshold=5,
+                 sample_prop=None,
+                 seed=42,
                  cache_dir="./caches"):
         
         super().__init__()
@@ -112,6 +117,7 @@ class AnnotatedSokobanDataset(GameDataset):
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
         self.novelty_threshold = novelty_threshold
+        self.seed = seed
 
         self.level_key = level_key
         self.annotation_keys = annotation_keys
