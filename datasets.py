@@ -133,6 +133,10 @@ class AnnotatedSokobanDataset(GameDataset):
             self.train_dataframe = complete_dataframe
             self.holdout_dataframe = None
 
+        # If specified, sample a proportion of the dataset
+        if sample_prop is not None:
+            self.train_dataframe = self.train_dataframe.sample(frac=sample_prop, random_state=self.seed)
+
         if self.num_annotation_buckets is not None:
             self.annotation_hist_values, self.annotation_hist_bins = {}, {}
             for annotation_key in self.annotation_keys:
@@ -149,14 +153,16 @@ class AnnotatedSokobanDataset(GameDataset):
                                       f"num_annotation_buckets:{num_annotation_buckets}",
                                       f"holdouts:{holdout_solution_lens}",
                                       f"split:{split}",
-                                      f"chunk_size:{chunk_size}")
+                                      f"chunk_size:{chunk_size}",
+                                      f"sample_prop:{sample_prop}",
+                                      f"seed:{seed}")
 
         # Create output directory if it doesn't exist
         if not os.path.exists(full_cache_dir):
             os.makedirs(full_cache_dir)
 
         # Tokenize processed levels (or load tokens from disk if available).
-        token_ids_path = os.path.join(full_cache_dir, "all_token_ids.npy")
+        token_ids_path = os.path.join(full_cache_dir, "boxoban_token_ids.npy")
 
         if os.path.isfile(token_ids_path):
             print(f"Loading tokens from cache...")
