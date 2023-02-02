@@ -51,13 +51,14 @@ hydra:
     params:
       # We will sweep over these parameters when the `--multirun` flag is used.
 
-      batch_size: 64
-      epochs: 50
+      batch_size: 32
+      epochs: 25
       num_eval_samples: 100
 
       seed: 0, 1, 2, 3, 4
       model: gpt2-untrained, gpt2, java-gpt2
-      learning_rate: 0.00001, 0.0001, 0.001
+
+      # learning_rate: 0.00001, 0.0001, 0.001
       # warmup_proportion: 0.0002, 0.002, 0.02
       # weight_decay: 0.001, 0.01, 0.1
 
