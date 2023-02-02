@@ -10,7 +10,7 @@ hydra:
   sweeper:
     params:
       n_proc: 40
-      level_file_idx: range(0, 450)
+      level_file_idx: range(1, 5)
 
   launcher:
     tasks_per_node: 1
@@ -25,7 +25,7 @@ hydra:
     chdir: False
 
 
-source: boxoban
+source: microban
 aggregate: False  # Collect all results into a single file
 n_proc: 1
 data_dir: ./data
