@@ -66,7 +66,7 @@ hydra:
   # SLURM-specific arguments
   launcher:
     tasks_per_node: 1
-    cpus_per_task: 1
+    cpus_per_task: 8
     gpus_per_node: 1
     timeout_min: 1440
     mem_gb: 30
