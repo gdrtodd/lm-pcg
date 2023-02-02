@@ -9,6 +9,7 @@ defaults:
 hydra:
   sweeper:
     params:
+      n_proc: 40
       level_file_idx: range(0, 450)
 
   launcher:
@@ -24,8 +25,10 @@ hydra:
     chdir: False
 
 
+source: boxoban
 aggregate: False  # Collect all results into a single file
-n_proc: 40
+n_proc: 1
 data_dir: ./data
 save_dir: ./caches
 level_file_idx: null  # None value processes all files sequentially
+save_freq: 1000
