@@ -15,6 +15,7 @@ def get_run_name(args):
         f"num_annotation_buckets:{args.num_annotation_buckets}",
         f"holdouts:{args.holdout_solution_lens}",
         f"chunk_size-{args.chunk_size}_lr-{args.learning_rate}",
+        f"sample_prop:{args.sample_prop}",
         f"seed-{args.seed}",
     )
     return run_name
