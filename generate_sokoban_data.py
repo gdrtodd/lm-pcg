@@ -88,6 +88,8 @@ def generate_sokoban_data(source="boxoban",
         levels_dir = os.path.join(data_dir, "boxoban-medium", "train")
     elif source == "microban":
         levels_dir = os.path.join(data_dir, "microban")
+    else:
+        exit(f"Invalid source: {source}")
 
     # If specified, process only a single file
     if level_file_idx is not None:

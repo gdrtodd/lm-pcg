@@ -62,7 +62,8 @@ BOXOBAN_MAPPING = {
     '$': 'box',
     '.': 'goal',
     '*': 'box_in_place',
-    '@': 'player'
+    '@': 'player',
+    '+': 'player_in_place'
 }
 
 BOXOBAN_INVERSE_MAPPING = {v: k for k, v in BOXOBAN_MAPPING.items()}
@@ -73,7 +74,8 @@ GRIDDLY_INVERSE_MAPPING = {
     'box': 'b',
     'goal': 'h',
     'player': 'A',
-    'box_in_place': 'f'
+    'box_in_place': 'f',
+    'player_in_place': 'A'
 }
 
 BOXOBAN_TO_GRIDDLY_CHARS = {k: GRIDDLY_INVERSE_MAPPING[v] for k, v in BOXOBAN_MAPPING.items()}
