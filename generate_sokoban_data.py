@@ -31,7 +31,7 @@ def generate_sokoban_data(source="boxoban",
     #  - the number of steps to solve the level
     #  - the level solution, das a list of actions
     #  - the split (train/val)
-    data_keys = ["level", "level_text", "level_hash", "width", "height", "num_targets", "prop_empty", "solution_len", "solution", "split"]
+    data_keys = ["level", "level_text", "level_hash", "width", "height", "num_targets", "prop_empty", "solution_len", "solution"]
 
     if source == "boxoban":
         levels_dir = os.path.join(data_dir, "boxoban-medium", "train")
@@ -108,6 +108,10 @@ def generate_sokoban_data(source="boxoban",
 
             print(f"Saving to {cache_file}...")
             data.to_hdf(cache_file, key="data")
+
+        # Save the final dataframe
+        print(f"Saving to {cache_file}...")
+        data.to_hdf(cache_file, key="data")
 
     return data
     

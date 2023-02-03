@@ -214,7 +214,7 @@ def _process_level(level):
     num_targets = level.count("$") + level.count("*")
     prop_empty = level.count("-") / (width * height)
 
-    solution, node, iterations = solver.getSolution(level_state, maxIterations=-1, maxTime=-1)
+    solution, node, iterations = solver.getSolution(level_state, maxIterations=1000000, maxTime=-1)
     if node.checkWin():
         solution_len = len(solution)
         print(f"Solved after {iterations} iterations.")
