@@ -9,14 +9,14 @@ defaults:
 hydra:
   sweeper:
     params:
-      n_proc: 40
+      n_proc: 16
       level_file_idx: range(1, 5)
 
   launcher:
     tasks_per_node: 1
-    cpus_per_task: 40
+    cpus_per_task: 16
     gpus_per_node: 0
-    timeout_min: 400
+    timeout_min: 1440
     mem_gb: 10
 
 
