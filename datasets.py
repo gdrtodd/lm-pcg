@@ -84,6 +84,7 @@ class AnnotatedSokobanDataset(GameDataset):
     Assumes we've pre-processed a sokoban dataset and saved it to a pandas dataframe.
 
     Args:
+        -source: which base dataset to use (boxoban or microban)
         -tokenizer: Huggingface tokenizer for a specific language model
         -model_name: Name of the language model
         -level_key: Key in the dataframe containing the level string (can be either an ASCII or text-based representation)
@@ -99,6 +100,7 @@ class AnnotatedSokobanDataset(GameDataset):
     '''
 
     def __init__(self,
+                 source: str,
                  tokenizer: AutoTokenizer,
                  model_name: str,
                  level_key: str="level",
@@ -124,8 +126,17 @@ class AnnotatedSokobanDataset(GameDataset):
         self.num_annotation_buckets = num_annotation_buckets
         self.holdout_solution_lens = holdout_solution_lens
 
-        # Filter out levels with solution lengths in the holdout set
-        complete_dataframe = pd.read_hdf(os.path.join(cache_dir, "boxoban_data.h5"), key="data")
+        df_cache_path = os.path.join(cache_dir, f"{source}_data.h5")
+        if not os.path.exists(df_cache_path):
+            exit(f"Dataset cache file at {df_cache_path} does not exist. Please run generate_sokoban_dataset.py first.")
+
+        else:
+            complete_dataframe = pd.read_hdf(df_cache_path, key="data") 
+
+        # TEMPORARY: microban doesn't have solution length annotation yet
+        if source == "microban":
+            assert self.annotation_keys is None and self.holdout_solution_lens is None, "Microban doesn't have solution length annotation yet."
+        
         if self.holdout_solution_lens is not None:
             self.train_dataframe = complete_dataframe.loc[~complete_dataframe["solution_len"].isin(self.holdout_solution_lens)]
             self.holdout_dataframe = complete_dataframe.loc[complete_dataframe["solution_len"].isin(self.holdout_solution_lens)]
@@ -147,6 +158,7 @@ class AnnotatedSokobanDataset(GameDataset):
         self.level_hashes = set(self.train_dataframe["level_hash"].values)
 
         full_cache_dir = os.path.join(cache_dir,
+                                      f"source:{source}",
                                       f"model:{model_name}",
                                       f"level_key:{level_key}",
                                       f"annotation_keys:{annotation_keys}",

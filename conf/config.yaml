@@ -10,6 +10,7 @@ defaults:
 
 # Dataset args
 game: sokoban
+source: boxoban
 level_key: level
 annotation_keys: null
 num_annotation_buckets: null

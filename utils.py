@@ -12,6 +12,7 @@ from sokoban_solvers import EnhancedAStarAgent, State
 def get_run_name(args):
     run_name = os.path.join(
         args.game,
+        f"source:{args.source}",
         f"model:{args.model}",
         f"level_key:{args.level_key}",
         f"annotation_keys:{args.annotation_keys}",
@@ -214,14 +215,16 @@ def _process_level(level):
     num_targets = level.count("$") + level.count("*")
     prop_empty = level.count("-") / (width * height)
 
-    solution, node, iterations = solver.getSolution(level_state, maxIterations=1000000, maxTime=-1)
-    if node.checkWin():
-        solution_len = len(solution)
-        print(f"Solved after {iterations} iterations.")
-    else:
-        solution_len = -1
-        solution = None
-        print(f"Failed after {iterations} iterations.")
+    # solution, node, iterations = solver.getSolution(level_state, maxIterations=1000000, maxTime=-1)
+    # if node.checkWin():
+    #     solution_len = len(solution)
+    #     print(f"Solved after {iterations} iterations.")
+    # else:
+    #     solution_len = -1
+    #     solution = None
+    #     print(f"Failed after {iterations} iterations.")
+    solution_len = -1
+    solution = None
 
     return level, level_text, level_hash, width, height, num_targets, prop_empty, solution_len, solution
 

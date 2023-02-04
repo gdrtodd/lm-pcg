@@ -220,7 +220,8 @@ def main(args: Config):
 
     # Instantiate the dataset
     if args.game == "sokoban":
-        dataset = AnnotatedSokobanDataset(tokenizer,
+        dataset = AnnotatedSokobanDataset(args.source,
+                                          tokenizer,
                                           args.model,
                                           level_key=args.level_key,
                                           annotation_keys=args.annotation_keys,
