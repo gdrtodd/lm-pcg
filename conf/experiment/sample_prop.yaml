@@ -1,0 +1,6 @@
+# @package _global_
+hydra:
+  sweeper:
+    params:
+      seed: 0, 1, 2, 3, 4
+      sample_prop: 0.01, 0.1, 0.25, 0.5
