@@ -3,7 +3,7 @@ import os
 from griddly import GymWrapperFactory
 import gym
 import hydra
-from multiprocessing import Pool
+from multiprocessing import Pool, get_context
 from PIL import Image
 import torch
 from tqdm import tqdm
@@ -15,7 +15,7 @@ from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name
 
 
 def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
-             verbose=False, render_dir=None):
+             verbose=False, render_dir=None, n_proc=1):
 
     # Map the model to the available device
     model.to(device)
@@ -53,7 +53,14 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     samples = [dataset.decode(sample) for sample in samples]
 
     if verbose: print("Computing solutions...")
-    solutions = [dataset.get_solution(sample) for sample in samples]
+
+    if n_proc == 1:
+        solutions = [dataset.get_solution(sample) for sample in samples]
+
+    else:
+        with get_context("spawn").Pool(n_proc) as pool:
+            solutions = list(tqdm(pool.imap(dataset.get_solution, samples)))
+
 
     novelties = [dataset.is_novel(sample) for sample in samples]
     accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
@@ -85,8 +92,9 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             print(f"Playable: {solutions[idx] != False}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != False else ""))
             print(f"Novel: {novelties[idx]}")
             print(f"Accurate: {accuracies[idx]}")
-            for key in args.annotation_keys:
-                print(f"\t{key}: {infos[idx][key]}")
+            if args.annotation_keys is not None:
+                for key in args.annotation_keys:
+                    print(f"\t{key}: {infos[idx][key]}")
 
         print("_" * 80)
         print(f"Proportion accurate: {prop_accurate}")
@@ -140,7 +148,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             
     return prop_accurate, prop_playable, prop_novel, diversity
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(version_base="1.2.0", config_path="conf", config_name="eval")
 def main(args: Config):
     run_name = get_run_name(args)
     output_dir = f"./logs/{run_name}"
@@ -177,7 +185,7 @@ def main(args: Config):
 
     render_dir = os.path.join(output_dir, 'renders')
 
-    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=None)
+    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=None, n_proc=args.num_eval_proc)
 
 if __name__ == "__main__":
     main()
