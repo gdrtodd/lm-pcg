@@ -247,7 +247,7 @@ class AnnotatedSokobanDataset(GameDataset):
             return False
 
         # Check if the level contains only the allowed characters
-        allowed_chars = set("\n# -@$.")
+        allowed_chars = set("\n# -@$.*+")
         if not set(level).issubset(allowed_chars):
             if verbose: print("--Level contains invalid characters--")
             return False
