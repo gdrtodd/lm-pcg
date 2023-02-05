@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 
 from helpers import h5_to_df
 from sokoban_solvers import EnhancedAStarAgent, State
@@ -56,7 +57,7 @@ def is_playable(level, verbose=False):
 
         # Check if the level can be solved by an ASTAR agent
         level_state = State().stringInitialize(level.split("\n"))
-        solution, node, iters = solver.getSolution(level_state, maxIterations=50000)
+        solution, node, iters = solver.getSolution(level_state, maxIterations=10000000000)
         if not node.checkWin():
             if verbose: print("--Level cannot be solved (... in 50k steps)--")
             return False
@@ -65,18 +66,56 @@ def is_playable(level, verbose=False):
 
         return solution
 
-# "davinci:ft-gameinnovationlab:microban-sample-2-10epochs-2023-02-05-21-20-44"
-gens = openai.Completion.create(
-  model="davinci:ft-gameinnovationlab:microban-sample-2-2023-02-05-20-39-06",
-  prompt="Map. ->",
-  max_tokens=150,
-  temperature=1,
-  stop = [". END"]
-)
+def eval(model,iterations):
 
-level = gens["choices"][0]["text"][1:]
-print(is_unique(level))
-print(is_playable(level,verbose=True))
-print(level)
+    generations = {}
+    generations["level"] = []
+    generations["is_unique"] = []
+    generations["is_playable"] = []
+    for iter in range(0, iterations):
+
+        gen = openai.Completion.create(
+                                       model=model,
+                                       prompt="Map. ->",
+                                       max_tokens=150,
+                                       temperature=0.5,
+                                       stop = [". END"]
+                                      )
+        
+        level = gen["choices"][0]["text"][1:]
+        
+        generations["level"].append(level)
+        generations["is_unique"].append(is_unique(level))
+        generations["is_playable"].append(is_playable(level))
+
+    df = pd.DataFrame(generations)
+    df.to_csv("result_5epoch.csv")
+    return df
+        
+        
+### CHECKPOINTS
+
+model = {
+"3_epochs" : "davinci:ft-gameinnovationlab:microban-sample-2-2023-02-05-20-39-06",
+"5_epochs" : "davinci:ft-gameinnovationlab:microban-sample-2-5epochs-2023-02-05-21-38-42",
+"10_epochs" : "davinci:ft-gameinnovationlab:microban-sample-2-10epochs-2023-02-05-21-20-44",
+}
+
+eval(model["5_epochs"],30)
+
+
+
+#gens = openai.Completion.create(
+#  model="davinci:ft-gameinnovationlab:microban-sample-2-5epochs-2023-02-05-21-38-42",
+#  prompt="Map. ->",
+#  max_tokens=150,
+#  temperature=0.3,
+#  stop = [". END"]
+#)
+
+#level = gens["choices"][0]["text"][1:]
+#print(is_unique(level))
+#print(is_playable(level,verbose=True))
+#print(level)
 
     
