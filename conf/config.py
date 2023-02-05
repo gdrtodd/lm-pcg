@@ -38,8 +38,8 @@ class Config:
 
     # Generation
     render: bool = False
-    num_eval_proc: int = 8
-    num_eval_samples: int = 20
+    num_eval_proc: int = 1
+    num_eval_samples: int = 10
     gen_freq: int = 500
     gen_len: int = 128
     gen_temp: float = 1

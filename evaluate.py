@@ -1,3 +1,4 @@
+from functools import partial
 import json
 import os
 import shutil
@@ -57,17 +58,20 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     if verbose: print("Computing solutions...")
 
     if args.num_eval_proc == 1:
-        solutions = [dataset.get_solution(sample) for sample in samples]
+        solutions = [dataset.get_solution(sample, verbose=False) for sample in samples]
         # solutions = [[] for _ in range(len(samples))]
         novelties, nearest_lvls, nearest_lvl_sols = zip(*[dataset.is_novel(sample) for sample in samples])
         accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
     
     else:
+        # FIXME: This makes things much slower (at least with num_eval_proc=10 or so -- just multiproc overhead?)
         with get_context("spawn").Pool(args.num_eval_proc) as pool:
-            solutions = list(tqdm(pool.imap(dataset.get_solution, samples)))
+            get_solution = partial(dataset.get_solution, verbose=False)
+            solutions = list(tqdm(pool.imap(get_solution, samples)))
+            samples_sols = list(zip(samples, solutions))
+            accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate_multi, samples_sols))))
             # solutions = [[] for _ in range(len(samples))]
             novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples))))
-            accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate, zip(samples, solutions)))))
     
     solutions = [[] if sol is False else sol for sol in solutions]
 

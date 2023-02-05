@@ -37,8 +37,8 @@ eval_freq: 1000
 no_log: false
 
 # Generation args
-num_eval_proc: 8
-num_eval_samples: 100
+num_eval_proc: 1
+num_eval_samples: 10
 gen_freq: 500
 gen_len: 128
 gen_temp: 1

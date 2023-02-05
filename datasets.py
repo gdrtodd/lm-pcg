@@ -41,6 +41,10 @@ class GameDataset(Dataset):
         '''
         raise NotImplementedError
 
+    def is_accurate_multi(self, *args):
+        # Turn arguments into a tuple so we can use `pool.map` on this function
+        return self.is_accurate(args)
+
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
 
@@ -326,7 +330,7 @@ class AnnotatedSokobanDataset(GameDataset):
 
         return self._format_annotation(annotation_values)
 
-    def is_accurate(self, annotated_level, solution=[]):
+    def is_accurate(self, annotated_level, solution):
         '''
         Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
         '''

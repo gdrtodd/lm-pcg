@@ -112,7 +112,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     accurate, info = dataset.is_accurate(sample, solution)
 
                     print(f"\nSample:\n{sample.replace('-', ' ')}\n")
-                    print(f"Novel: {dataset.is_novel(sample)}")    
+                    print(f"Novel: {dataset.is_novel(sample)[0]}")    
                     print(f"Playable: {solution != False}")
                     print(f"Accurate: {accurate}")
 
@@ -121,7 +121,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 if global_step%args.eval_freq == 0:
                     print(f"\nGenerating samples for evaluation at step {global_step}...")
-                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset,  args)
+                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset, args, num_proc=args.num_eval_proc)
 
                     print("Proportion of accurate levels:", prop_accurate)
                     print("Proportion of playable levels:", prop_playable)
