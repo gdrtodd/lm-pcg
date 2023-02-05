@@ -120,9 +120,12 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         "novelties": novelties,
         "infos": infos,
     }
+
+
     # Save json to disc
     run_name = get_run_name(args)
-    stats_path = os.path.join('logs', run_name, "stats.json")
+    eval_filename = f"temp-{args.gen_temp}_topk-{args.gen_top_k}_topp-{args.gen_top_p}_typicalp-{args.gen_typical_p}_beams-{args.gen_beams}.json"
+    stats_path = os.path.join('logs', run_name, eval_filename)
     with open(stats_path, "w") as f:
         json.dump(stats, f, indent=4)
 
