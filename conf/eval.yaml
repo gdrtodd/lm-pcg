@@ -6,6 +6,7 @@ defaults:
   - override hydra/launcher: submitit_slurm
 
 
+render: false
 num_eval_proc: 10  # For computing solutions in parallel
 
 

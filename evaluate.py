@@ -1,4 +1,6 @@
+import json
 import os
+import shutil
 
 from griddly import GymWrapperFactory
 import gym
@@ -11,11 +13,11 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from conf.config import Config
 from datasets import GameDataset, AnnotatedSokobanDataset
-from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name, load_train_state
+from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name, load_train_state, save_gif
 
 
 def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
-             verbose=False, render_dir=None, n_proc=1):
+             verbose=False, render_dir=None, num_proc=1):
 
     # Map the model to the available device
     model.to(device)
@@ -54,19 +56,23 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
     if verbose: print("Computing solutions...")
 
-    if n_proc == 1:
+    if args.num_eval_proc == 1:
         solutions = [dataset.get_solution(sample) for sample in samples]
-
+        # solutions = [[] for _ in range(len(samples))]
+        novelties, nearest_lvls, nearest_lvl_sols = zip(*[dataset.is_novel(sample) for sample in samples])
+        accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
+    
     else:
-        with get_context("spawn").Pool(n_proc) as pool:
+        with get_context("spawn").Pool(args.num_eval_proc) as pool:
             solutions = list(tqdm(pool.imap(dataset.get_solution, samples)))
-
-
-    novelties = [dataset.is_novel(sample) for sample in samples]
-    accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
+            # solutions = [[] for _ in range(len(samples))]
+            novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples))))
+            accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate, zip(samples, solutions)))))
+    
+    solutions = [[] if sol is False else sol for sol in solutions]
 
     num_accurate = sum(accuracies)
-    num_playable = sum([sol != False for sol in solutions])
+    num_playable = sum([len(sol) > 0 for sol in solutions])
     num_novel = sum(novelties)
 
     prop_accurate = num_accurate / len(samples)
@@ -102,51 +108,51 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"Proportion novel: {prop_novel}")
         print(f"Diversity (lower bound): {diversity}")
 
-    model.train()
+    # Save stats to json
+    stats = {
+        "prop_accurate": prop_accurate,
+        "prop_playable": prop_playable,
+        "prop_novel": prop_novel,
+        "diversity": diversity,
+        "samples": samples,
+        "solutions": solutions,
+        "accuracies": accuracies,
+        "novelties": novelties,
+        "infos": infos,
+    }
+    # Save json to disc
+    run_name = get_run_name(args)
+    stats_path = os.path.join('logs', run_name, "stats.json")
+    with open(stats_path, "w") as f:
+        json.dump(stats, f, indent=4)
 
     # Render generated levels and animate solutions if applicable.
     if render_dir:
-        if not os.path.isdir(render_dir):
-            os.makedirs(render_dir)
+        if os.path.isdir(render_dir):
+            # Delete old renderings
+            shutil.rmtree(render_dir)
+        os.makedirs(render_dir)
+
         trans_table = {ord(k): v for k, v in BOXOBAN_TO_GRIDDLY_CHARS.items()}
         wrapper = GymWrapperFactory()
         wrapper.build_gym_from_yaml('sokoban', os.path.join('gdy_games', 'sokoban.yaml'))
         env = gym.make('GDY-sokoban-v0')
         for i, (sample, sol) in enumerate(zip(samples, solutions)):
-            lvl_render_dir = os.path.join(render_dir, f"lvl_{i}")
-            if not os.path.isdir(lvl_render_dir):
-                os.makedirs(lvl_render_dir)
-            sample = sample.translate(trans_table)
-            j = 0
-            if sol != False:
-                frames = []
-                ep_rew = 0
-                env.reset(level_string=sample)
-                im_name = os.path.join(lvl_render_dir, f"{j}.png")
-                im = env.render(mode='rgb_array')
-                im = Image.fromarray(im)
-                im.save(im_name)
-                frames.append(im)
-                for act_dict in sol:
-                    j += 1
-                    act_tpl = (act_dict['x'], act_dict['y'])
-                    act_id = GRIDDLY_ACTION_MAPPING[act_tpl]
-                    obs, rew, done, info = env.step(act_id)
-                    ep_rew += rew
-                    im_name = os.path.join(lvl_render_dir, f"{j}.png")
-                    im = env.render(mode='rgb_array')
-                    im = Image.fromarray(im)
-                    im.save(im_name)
-                    frames.append(im)
-                
-                # Save gif
-                frames[0].save(os.path.join(render_dir, f"lvl_{i}.gif"), format='GIF',
-                    append_images=frames[1:],
-                    save_all=True,
-                    duration=300, loop=0)
+
+            lvl = sample.translate(trans_table)
+            lvl_render_dir = os.path.join(render_dir, f"lvl_{i}_{len(sol)}-sol")
+            save_gif(env, lvl, sol, lvl_render_dir)
+
+            nearest_lvl = nearest_lvls[i].translate(trans_table)
+            nearest_lvl_sol = nearest_lvl_sols[i]
+            lvl_render_dir = os.path.join(render_dir, f"lvl_{i}_nearest_train")
+            save_gif(env, nearest_lvl, sol=nearest_lvl_sol, lvl_render_dir=lvl_render_dir)
+
         env.close()
+    model.train()
             
     return prop_accurate, prop_playable, prop_novel, diversity
+
 
 @hydra.main(version_base="1.2.0", config_path="conf", config_name="eval")
 def main(args: Config):
@@ -169,23 +175,33 @@ def main(args: Config):
 
     # Instantiate the dataset
     if args.game == "sokoban":
-        dataset = AnnotatedSokobanDataset(tokenizer,
+        dataset = AnnotatedSokobanDataset(args.source,
+                                          tokenizer,
                                           args.model,
                                           level_key=args.level_key,
                                           annotation_keys=args.annotation_keys,
                                           num_annotation_buckets=args.num_annotation_buckets,
                                           holdout_solution_lens=args.holdout_solution_lens,
                                           split="train",
-                                          chunk_size=args.chunk_size)
+                                          novelty_threshold=args.novelty_threshold,
+                                          sample_prop=args.sample_prop,
+                                          chunk_size=args.chunk_size,
+                                          seed=args.seed)
 
     else:
         raise NotImplementedError
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    render_dir = os.path.join(output_dir, 'renders')
+    render_dir = None
+    if args.render:
+        render_dir = os.path.join(output_dir, 'renders')
 
-    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=None, n_proc=args.num_eval_proc)
+    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=render_dir, num_proc=args.num_eval_proc)
+
+    # SIGSEGV ?? ... griddly?
+
+    return
 
 if __name__ == "__main__":
     main()

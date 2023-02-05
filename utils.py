@@ -4,12 +4,15 @@ import os
 import numpy as np
 import shutil
 
+import imageio
+from PIL import Image
 import torch
 from transformers import AutoModelForCausalLM
+from conf.config import Config
 
 from sokoban_solvers import EnhancedAStarAgent, State
 
-def get_run_name(args):
+def get_run_name(args: Config):
     run_name = os.path.join(
         args.game,
         f"source:{args.source}",
@@ -61,7 +64,7 @@ def load_train_state(output_dir):
     return model, optimizer_state_dict, global_step
 
 BOXOBAN_MAPPING = {
-    ' ': 'empty',
+    '-': 'empty',
     '#': 'wall',
     '$': 'box',
     '.': 'goal',
@@ -215,21 +218,51 @@ def _process_level(level):
     num_targets = level.count("$") + level.count("*")
     prop_empty = level.count("-") / (width * height)
 
-    # solution, node, iterations = solver.getSolution(level_state, maxIterations=1000000, maxTime=-1)
-    # if node.checkWin():
-    #     solution_len = len(solution)
-    #     print(f"Solved after {iterations} iterations.")
-    # else:
-    #     solution_len = -1
-    #     solution = None
-    #     print(f"Failed after {iterations} iterations.")
-    solution_len = -1
-    solution = None
+    solution, node, iterations = solver.getSolution(level_state, maxIterations=1_000_000, maxTime=-1)
+    if node.checkWin():
+        solution_len = len(solution)
+        print(f"Solved after {iterations} iterations.")
+    else:
+        solution_len = -1
+        solution = None
+        print(f"Failed after {iterations} iterations.")
 
     return level, level_text, level_hash, width, height, num_targets, prop_empty, solution_len, solution
 
 def _hash_level(level):
     return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+
+
+
+def save_gif(env, lvl, sol, lvl_render_dir):
+    if not os.path.isdir(lvl_render_dir):
+        os.makedirs(lvl_render_dir)
+    j = 0
+    if sol != False:
+        frames = []
+        ep_rew = 0
+        env.reset(level_string=lvl)
+        im_name = os.path.join(lvl_render_dir, f"{j}.png")
+        im = env.render(mode='rgb_array')
+        im = Image.fromarray(im)
+        im.save(im_name)
+        frames.append(im)
+        for act_dict in sol:
+            j += 1
+            act_tpl = (act_dict['x'], act_dict['y'])
+            act_id = GRIDDLY_ACTION_MAPPING[act_tpl]
+            obs, rew, done, info = env.step(act_id)
+            ep_rew += rew
+            im_name = os.path.join(lvl_render_dir, f"{j}.png")
+            im = env.render(mode='rgb_array')
+            im = Image.fromarray(im)
+            im.save(im_name)
+            frames.append(im)
+        
+        # Parent of the level directory and name of the level directory
+        render_dir, lvl_dir = os.path.split(lvl_render_dir)
+        # Save gif with fps of 3
+        imageio.mimsave(os.path.join(render_dir, f"{lvl_dir}.gif"), frames, fps=10)
 
 
 #     level = """

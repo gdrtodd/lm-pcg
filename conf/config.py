@@ -37,6 +37,7 @@ class Config:
     no_log: bool = False
 
     # Generation
+    render: bool = False
     num_eval_proc: int = 8
     num_eval_samples: int = 20
     gen_freq: int = 500

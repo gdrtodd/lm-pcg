@@ -181,6 +181,7 @@ class AnnotatedSokobanDataset(GameDataset):
             self.all_token_ids = np.load(token_ids_path)
 
         else:
+            print(f"No token cache found at {token_ids_path}. Tokenizing levels...")
             # Optionally ensure each tile-character is tokenized individually
             # if data_source == "boxoban-chars":
             #     tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
@@ -325,10 +326,11 @@ class AnnotatedSokobanDataset(GameDataset):
 
         return self._format_annotation(annotation_values)
 
-    def is_accurate(self, annotated_level, solution=False):
+    def is_accurate(self, annotated_level, solution=[]):
         '''
         Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
         '''
+        solution = [] if not solution else solution
 
         annotation_len = len(self.annotation_keys) if self.annotation_keys is not None else 0
         annotation = annotated_level.split("\n")[:annotation_len]
@@ -386,11 +388,23 @@ class AnnotatedSokobanDataset(GameDataset):
 
         train_levels = self.train_dataframe[self.level_key].tolist()
 
-        for train_level in train_levels:
-            if distance(level, train_level) < self.novelty_threshold:
-                return False
+        novel = True
+        nearest_lvl_dist = np.inf
+        nearest_lvl = None
+        for lvl_i, train_level in enumerate(train_levels):
+            dist_i = distance(level, train_level)
+            if dist_i < nearest_lvl_dist:
+                nearest_lvl_dist = dist_i
+                nearest_lvl = train_level
+                nearest_lvl_i = lvl_i
+            if dist_i < self.novelty_threshold:
+                novel = False
+                break
 
-        return True
+        # Get solution of train level
+        nearest_lvl_sol = self.train_dataframe.iloc[nearest_lvl_i]['solution']
+
+        return novel, nearest_lvl, nearest_lvl_sol
 
     def get_diversity(self, levels, clique_limit=1000000):
         '''
