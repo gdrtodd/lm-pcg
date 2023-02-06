@@ -37,7 +37,9 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
         next(data_loader_iter)
 
     # Calculate the total number of training steps to initialize the scheduler
-    num_train_steps = len(data_loader) * args.epochs
+    # num_train_steps = len(data_loader) * args.epochs
+    num_train_steps = args.num_train_steps
+
     scheduler = get_linear_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=int(args.warmup_proportion * num_train_steps),
@@ -50,9 +52,13 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     # Initialize the progress bar
     progress_bar = tqdm(total=num_train_steps, desc=f"Training {args.model} model")
     progress_bar.update(global_step)
+
+    done_training = False
     
     try:
-        for epoch in range(epoch, args.epochs):
+        # for epoch in range(epoch, args.epochs):
+        while not done_training:
+            epoch += 1
             for batch_i in range(batch_i, len(data_loader)):
                 global_step += 1
 
@@ -134,6 +140,10 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                         log_writer.add_scalar("eval/prop_accurate", prop_accurate, global_step)
                         log_writer.add_scalar("eval/diversity", diversity, global_step)
 
+                if global_step >= args.num_train_steps:
+                    done_training = True
+                    break
+
             # Reset the data loader iterator and save at the end of each epoch
             data_loader_iter = iter(data_loader)
             batch_i = 0
@@ -146,7 +156,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
         progress_bar.close()
         exit("Stopping early due to user input")
 
-    print("Finished training.")
+    print(f"Finished training: {global_step} steps and {epoch} epochs.")
     progress_bar.close()
     if not args.no_log:
         save_train_state(model, optimizer, global_step, output_dir)
