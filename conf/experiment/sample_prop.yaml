@@ -2,5 +2,6 @@
 hydra:
   sweeper:
     params:
-      seed: 0, 1, 2, 3, 4
-      sample_prop: 0.01, 0.1, 0.25, 0.5
+      model: gpt2
+      seed: 5, 6, 7, 8, 9
+      sample_prop: 0.001, 0.01, 0.1
