@@ -41,9 +41,9 @@ class GameDataset(Dataset):
         '''
         raise NotImplementedError
 
-    def is_accurate_multi(self, *args):
+    def is_accurate_multi(self, level_and_sol):
         # Turn arguments into a tuple so we can use `pool.map` on this function
-        return self.is_accurate(args)
+        return self.is_accurate(*level_and_sol)
 
     def _hash_level(self, level):
         return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
@@ -334,7 +334,6 @@ class AnnotatedSokobanDataset(GameDataset):
         '''
         Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
         '''
-        solution = [] if not solution else solution
 
         annotation_len = len(self.annotation_keys) if self.annotation_keys is not None else 0
         annotation = annotated_level.split("\n")[:annotation_len]
@@ -351,7 +350,7 @@ class AnnotatedSokobanDataset(GameDataset):
                       "height": len(level.split("\n")),
                       "num_targets": level.count(".") if level.count(".") == level.count("$") else None,
                       "prop_empty": prop_empty,
-                      "solution_len": len(solution) if solution is not False else None}
+                      "solution_len": len(solution) if solution else -1}
 
         # If the level contains an invalid line, then it cannot be accurate
         if "Invalid line" in annotated_level:
@@ -441,9 +440,7 @@ class AnnotatedSokobanDataset(GameDataset):
                 break
 
 
-        diversity = biggest_clique / len(levels)
-
-        return diversity
+        return biggest_clique
 
     def decode(self, token_ids):
         '''

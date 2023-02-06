@@ -55,11 +55,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
 
-    if verbose: print("Computing solutions...")
+    
 
     if args.num_eval_proc == 1:
+        if verbose: print("Computing solutions...")
         solutions = [dataset.get_solution(sample, verbose=False) for sample in samples]
-        # solutions = [[] for _ in range(len(samples))]
         novelties, nearest_lvls, nearest_lvl_sols = zip(*[dataset.is_novel(sample) for sample in samples])
         accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
     
@@ -67,11 +67,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         # FIXME: This makes things much slower (at least with num_eval_proc=10 or so -- just multiproc overhead?)
         with get_context("spawn").Pool(args.num_eval_proc) as pool:
             get_solution = partial(dataset.get_solution, verbose=False)
-            solutions = list(tqdm(pool.imap(get_solution, samples)))
+            solutions = list(tqdm(pool.imap(get_solution, samples), total=len(samples), desc="Computing solutions"))
             samples_sols = list(zip(samples, solutions))
-            accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate_multi, samples_sols))))
-            # solutions = [[] for _ in range(len(samples))]
-            novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples))))
+            accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate_multi, samples_sols), total=len(samples_sols), desc="Computing accuracies")))
+            novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples), total=len(samples), desc="Computing novelties")))
+    
     
     solutions = [[] if sol is False else sol for sol in solutions]
 
@@ -84,7 +84,13 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     prop_novel = num_novel / len(samples)
 
     if verbose: print("Computing diversity...")
-    diversity = dataset.get_diversity(samples)
+    num_diverse = dataset.get_diversity(samples)
+    diversity = num_diverse / len(samples)
+
+    # Compute the number of levels that are novel, playable, and accurate
+    novel_playable_accurate_levels = [level for idx, level in enumerate(samples) if novelties[idx] and len(solutions[idx]) > 0 and accuracies[idx]]
+    prop_novel_playable_accurate = len(novel_playable_accurate_levels) / len(samples)
+    restricted_diversity = dataset.get_diversity(novel_playable_accurate_levels) / len(samples)
 
     if verbose:
         print("GENERATION PARAMETERS:")
@@ -97,9 +103,14 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
         for idx, sample in enumerate(samples):
             print("_" * 80)
-            print(sample)
+
+            line_offset = len(sample.split("\n")[0]) - len("SAMPLE") # just for lining things up
+            print(f"SAMPLE{' ' * line_offset}\t\t \t\tNEAREST LEVEL")
+            for l1, l2 in zip(sample.split("\n"), nearest_lvls[idx].split("\n")):
+                print(f"{l1.replace('-', ' ')}\t\t|\t\t{l2.replace('-', ' ')}")
+
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
-            print(f"Playable: {solutions[idx] != False}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != False else ""))
+            print(f"Playable: {solutions[idx] != []}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != [] else ""))
             print(f"Novel: {novelties[idx]}")
             print(f"Accurate: {accuracies[idx]}")
             if args.annotation_keys is not None:
@@ -111,13 +122,17 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
         print(f"Diversity (lower bound): {diversity}")
+        print(f"\nPropotion novel, playable, and accurate: {prop_novel_playable_accurate}")
+        print(f"Diversity (restricted): {restricted_diversity}")
 
     # Save stats to json
     stats = {
         "prop_accurate": prop_accurate,
         "prop_playable": prop_playable,
         "prop_novel": prop_novel,
+        "prop_novel_playable_accurate": prop_novel_playable_accurate,
         "diversity": diversity,
+        "restricted_diversity": restricted_diversity,
         "samples": samples,
         "solutions": solutions,
         "accuracies": accuracies,
