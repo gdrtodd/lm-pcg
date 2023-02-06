@@ -139,6 +139,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
     # Save stats to json
     stats = {
+        "novelty_threshold": dataset.novelty_threshold,
         "prop_accurate": prop_accurate,
         "prop_playable": prop_playable,
         "prop_novel": prop_novel,
@@ -155,7 +156,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
     # Save json to disc
     run_name = get_run_name(args)
-    eval_filename = f"temp-{args.gen_temp}_topk-{args.gen_top_k}_topp-{args.gen_top_p}_typicalp-{args.gen_typical_p}_beams-{args.gen_beams}.json"
+    eval_filename = f"temp-{args.gen_temp}_topk-{args.gen_top_k}_topp-{args.gen_top_p}_typicalp-{args.gen_typical_p}_beams-{args.gen_beams}_threshold-{dataset.novelty_threshold}.json"
     stats_path = os.path.join('logs', run_name, eval_filename)
     with open(stats_path, "w") as f:
         json.dump(stats, f, indent=4)
