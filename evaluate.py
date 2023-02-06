@@ -6,6 +6,7 @@ import shutil
 from griddly import GymWrapperFactory
 import gym
 import hydra
+from Levenshtein import distance
 from multiprocessing import Pool, get_context
 from PIL import Image
 import torch
@@ -73,7 +74,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples), total=len(samples), desc="Computing novelties")))
     
     
-    solutions = [[] if sol is False else sol for sol in solutions]
+    # Convert solutions to strings using the griddly action mapping
+    # solutions = [[] if sol is False else sol for sol in solutions]
+
+    solutions = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in solutions]
+    nearest_lvl_sols = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in nearest_lvl_sols]
 
     num_accurate = sum(accuracies)
     num_playable = sum([len(sol) > 0 for sol in solutions])
@@ -109,9 +114,16 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             for l1, l2 in zip(sample.split("\n"), nearest_lvls[idx].split("\n")):
                 print(f"{l1.replace('-', ' ')}\t\t|\t\t{l2.replace('-', ' ')}")
 
+
+
             print(f"\nSample {idx + 1} of {args.num_eval_samples}")
-            print(f"Playable: {solutions[idx] != []}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != [] else ""))
+            print(f"Playable: {solutions[idx] != ''}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != "" else ""))
             print(f"Novel: {novelties[idx]}")
+
+            print(f"-Level edit distance: {distance(sample, nearest_lvls[idx])}")
+            if solutions[idx]:
+                print(f"-Solution edit distance: {distance(solutions[idx], nearest_lvl_sols[idx])}")
+
             print(f"Accurate: {accuracies[idx]}")
             if args.annotation_keys is not None:
                 for key in args.annotation_keys:

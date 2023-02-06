@@ -247,11 +247,9 @@ def save_gif(env, lvl, sol, lvl_render_dir):
         im = Image.fromarray(im)
         im.save(im_name)
         frames.append(im)
-        for act_dict in sol:
+        for act_id in sol:
             j += 1
-            act_tpl = (act_dict['x'], act_dict['y'])
-            act_id = GRIDDLY_ACTION_MAPPING[act_tpl]
-            obs, rew, done, info = env.step(act_id)
+            obs, rew, done, info = env.step(int(act_id))
             ep_rew += rew
             im_name = os.path.join(lvl_render_dir, f"{j}.png")
             im = env.render(mode='rgb_array')
