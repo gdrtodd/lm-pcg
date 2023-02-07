@@ -84,19 +84,6 @@ def is_playable(level, verbose=False):
         return solution
 
 
-def is_diverse(series, row_index):
-    """
-    Function to calculate novelty
-    """
-    distances = []
-    for i, value in enumerate(series):
-        if i != row_index:
-            d = distance(series[row_index], value)
-            if d < 5:
-                return False
-            
-    return True#np.mean(distances)
-
 def get_diversity(levels, novelty_threshold, clique_limit=1000000):
         '''
         Returns the 'diversity' of a set of levels, defined as the size of the largest subset of levels
@@ -132,6 +119,10 @@ def get_diversity(levels, novelty_threshold, clique_limit=1000000):
 
 
 def infer_and_eval(model,simulations, model_name, exp_no):
+
+    """
+    inference and evaluations
+    """
 
     generations = {}
     generations["level"] = []
@@ -177,6 +168,10 @@ def infer_and_eval(model,simulations, model_name, exp_no):
           
 
 def eval_only(path,simulations):
+
+    """
+    evals only.
+    """
 
     df = pd.read_csv(path,index_col=0)
     #print(df.head())
@@ -239,11 +234,11 @@ model_8 = {
 }
 model_name = "davinci"
 
-exp_no = 200
+exp_no = 104
 
 simulations = 100
 
-df, playability, diversity, novelty = infer_and_eval(model_8["1_epochs"],simulations,model_name,exp_no)
+df, playability, diversity, novelty = infer_and_eval(model_6["10_epochs"],simulations,model_name,exp_no)
 #df, playability, diversity, novelty = eval_only("exp_results/result_davinci_0.55-temp_1-top_p_simulations-10_exp-no_102.csv",simulations)
 
 
