@@ -1,18 +1,21 @@
 from itertools import groupby
 import os
+import numpy as np
 import shutil
 
 import torch
 from transformers import AutoModelForCausalLM
 
 def get_run_name(args):
-    # datetime_str = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     run_name = os.path.join(
         args.game,
-        args.model,
-        args.data_source if args.data_source else "",
+        f"model:{args.model}",
+        f"level_key:{args.level_key}",
+        f"annotation_keys:{args.annotation_keys}",
+        f"num_annotation_buckets:{args.num_annotation_buckets}",
+        f"holdouts:{args.holdout_solution_lens}",
         f"chunk_size-{args.chunk_size}_lr-{args.learning_rate}",
-        args.exp_name,
+        f"sample_prop:{args.sample_prop}",
         f"seed-{args.seed}",
     )
     return run_name
@@ -41,7 +44,7 @@ def load_train_state(output_dir):
     prior_checkpoint_paths = sorted(prior_checkpoint_paths, key=lambda x: int(x.split("-")[-1]))
     
     if len(prior_checkpoint_paths) == 0:
-        raise Exception(f"No checkpoints found at {output_dir}. Exiting.")
+        raise FileNotFoundError(f"No checkpoints found at {output_dir}. Exiting.")
 
     output_dir = prior_checkpoint_paths[-1]
 
@@ -58,7 +61,9 @@ BOXOBAN_MAPPING = {
     '#': 'wall',
     '$': 'box',
     '.': 'goal',
-    '@': 'player'
+    '*': 'box_in_place',
+    '@': 'player',
+    '+': 'player_in_place'
 }
 
 BOXOBAN_INVERSE_MAPPING = {v: k for k, v in BOXOBAN_MAPPING.items()}
@@ -69,6 +74,8 @@ GRIDDLY_INVERSE_MAPPING = {
     'box': 'b',
     'goal': 'h',
     'player': 'A',
+    'box_in_place': 'f',
+    'player_in_place': 'A'
 }
 
 BOXOBAN_TO_GRIDDLY_CHARS = {k: GRIDDLY_INVERSE_MAPPING[v] for k, v in BOXOBAN_MAPPING.items()}
@@ -106,28 +113,89 @@ def decode_boxoban_text(text):
 
     return level
 
-if __name__ == "__main__":
-    level = """
-##########
-### ######
-###@ #####
-### ######
-###$ #####
-### .#####
-###  #####
-# .$ $ ###
-#. $ .  ##
-##########
-    """
+def generate_l_mazes(width, height):
+    '''
+    Generates the set of all "L Mazes" of a given width and height. We construct an L Maze by choosing a start
+    and end point at least one square away from the edge and then connecting them with a path that has at most
+    one turn. For example:
 
-    from sokoban_solvers import EnhancedAStarAgent, State
+    ##########
+    #      ###
+    ###### ###
+    ##########
+    ##########
+    '''
 
-    start_state = State().stringInitialize(level.split("\n"))
+    def to_string(grid):
+        return "\n".join(["".join(["#" if pos == 1 else "-" for pos in row]) for row in grid])
 
-    solver = EnhancedAStarAgent()
-    sol, node, iters = solver.getSolution(start_state)
-    print(sol)
-    print(node.checkWin())
+    def l_path(start, end):
+        path = []
+
+        cur_pos = start
+
+        # Always gives the path that changes y before x
+        while cur_pos[1] != end[1]:
+            cur_pos = (cur_pos[0], cur_pos[1] + (1 if cur_pos[1] < end[1] else -1))
+            path.append(cur_pos)
+
+        while cur_pos[0] != end[0]:
+            cur_pos = (cur_pos[0] + (1 if cur_pos[0] < end[0] else -1), cur_pos[1])
+            path.append(cur_pos)
+
+        return path
+
+
+    l_mazes = []
+    path_lens = []
+
+    interior_positions = [(y, x) for x in range(1, width-1) for y in range(1, height-1)]
+    used_starts = set()
+
+    for start in interior_positions:
+        for end in interior_positions:
+            if start == end:
+                continue
+            if end in used_starts:
+                continue
+            used_starts.add(start)
+
+            grid = np.ones((height, width), dtype=np.int8)
+            path = l_path(start, end)
+
+            grid[start] = 0
+            for pos in path:
+                grid[pos] = 0
+
+            annotation = f"Width: {width}\nHeight: {height}\nPath length: {len(path)}\n"
+            path_lens.append(len(path))
+            l_mazes.append(annotation + to_string(grid))
+
+    return l_mazes, path_lens
+
+
+
+#     level = """
+# ##########
+# ### ######
+# ###@ #####
+# ### ######
+# ###$ #####
+# ### .#####
+# ###  #####
+# # .$ $ ###
+# #. $ .  ##
+# ##########
+#     """
+
+#     from sokoban_solvers import EnhancedAStarAgent, State
+
+#     start_state = State().stringInitialize(level.split("\n"))
+
+#     solver = EnhancedAStarAgent()
+#     sol, node, iters = solver.getSolution(start_state)
+#     print(sol)
+#     print(node.checkWin())
 
 #     output = """10 wall
 # 1 wall, 2 empty, 7 wall

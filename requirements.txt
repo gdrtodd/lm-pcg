@@ -1,5 +1,8 @@
 griddly
+levenshtein
+networkx
 pandas
+tables
 tensorboard
 torch
 tqdm

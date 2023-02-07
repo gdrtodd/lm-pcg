@@ -2,6 +2,7 @@
 Credit to: Ahmed Khalifa, https://github.com/amidos2006/AutoSokoban/blob/master/Sokoban/Sokoban.py
 '''
 
+import time
 from queue import PriorityQueue
 from tqdm import tqdm
 
@@ -161,14 +162,16 @@ class AStarAgent(Agent):
         return bestNode.getActions(), bestNode, iterations
     
 class EnhancedAStarAgent(Agent):
-    def getSolution(self, state, balance=1, maxIterations=-1):
+    def getSolution(self, state, balance=1, maxIterations=-1, maxTime=-1):
+        start_time = time.perf_counter()
         iterations = 0
         bestNode = None
         Node.balance = balance
         queue = PriorityQueue()
         queue.put(Node(state.clone(), None, None))
         visisted = set()
-        while (iterations < maxIterations or maxIterations <= 0) and queue.qsize() > 0:
+        while (iterations < maxIterations or maxIterations <= 0) and (time.perf_counter() - start_time < maxTime or maxTime < 0) \
+              and queue.qsize() > 0:
             iterations += 1
             # queue = sorted(queue, key=lambda node: balance*node.getCost() + node.getHeuristic())
             current = queue.get()

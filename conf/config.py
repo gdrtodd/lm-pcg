@@ -1,5 +1,5 @@
 from dataclasses import MISSING, dataclass
-from typing import Optional
+import typing
 
 from hydra.core.config_store import ConfigStore
 
@@ -10,8 +10,13 @@ class Config:
 
     # Dataset
     game: str = "sokoban"
-    data_source: Optional[str] = None
+    level_key: str = "level"
+    annotation_keys: typing.Optional[typing.List[str]] = None
+    num_annotation_buckets: typing.Optional[int] = None
+    holdout_solution_lens: typing.Optional[typing.List[int]] = None
     chunk_size: int = 128
+    novelty_threshold: int = 5
+    sample_prop: typing.Optional[float] = None
 
     # Model
     model: str = "gpt2"  # choices=["gpt2", "codeparrot", "java-gpt2", "incoder-1B", "incoder-6B"]
@@ -24,7 +29,7 @@ class Config:
     exp_name: str = ""
     overwrite: bool = False  # Overwrite the output directory if it exists (otherwise, attempt to load train state)
     seed: int = 42
-    batch_size: int = 1
+    batch_size: int = 16
     epochs: int = 20
     save_freq: int = 1000
     eval_freq: int = 1000
@@ -34,12 +39,12 @@ class Config:
     num_eval_samples: int = 20
     gen_freq: int = 500
     gen_len: int = 128
-    gen_context: str = ""
     gen_temp: float = 1
     gen_beams: int = 5
     gen_top_k: int = 50
     gen_top_p: float = 1.0
     gen_typical_p: float = 1.0
+    sample_contexts: bool = False
 
 
 cs = ConfigStore.instance()

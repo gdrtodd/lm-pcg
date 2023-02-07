@@ -10,8 +10,13 @@ defaults:
 
 # Dataset args
 game: sokoban
-data_source: null
+level_key: level
+annotation_keys: null
+num_annotation_buckets: null
+holdout_solution_lens: null
 chunk_size: 128
+novelty_threshold: 5
+sample_prop: null
 
 # Model args
 model: java-gpt2
@@ -34,12 +39,12 @@ no_log: false
 num_eval_samples: 20
 gen_freq: 500
 gen_len: 128
-gen_context: ''
 gen_temp: 1
 gen_beams: 5
 gen_top_k: 50
 gen_top_p: 1.0
 gen_typical_p: 1.0
+sample_contexts: false
 
 
 hydra:
@@ -47,18 +52,22 @@ hydra:
     params:
       # We will sweep over these parameters when the `--multirun` flag is used.
 
-      # model: gpt2, codeparrot, java-gpt2, incoder-1B, incoder-6B 
-      model: gpt2, java-gpt2
+      batch_size: 32
+      epochs: 25
+      num_eval_samples: 100
 
-      data_source: null, boxoban-chars, boxoban-text
-      # data_source: boxoboan-chars
+      seed: 0, 1, 2, 3, 4
+      model: gpt2-untrained, gpt2, java-gpt2
 
-      # chunk_size: 128, 256, 512
+      # learning_rate: 0.00001, 0.0001, 0.001
+      # warmup_proportion: 0.0002, 0.002, 0.02
+      # weight_decay: 0.001, 0.01, 0.1
+
 
   # SLURM-specific arguments
   launcher:
     tasks_per_node: 1
-    cpus_per_task: 10
+    cpus_per_task: 8
     gpus_per_node: 1
     timeout_min: 1440
     mem_gb: 30
