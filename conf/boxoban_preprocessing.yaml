@@ -27,6 +27,7 @@ hydra:
 
 source: microban
 aggregate: False  # Collect all results into a single file
+augment: False
 n_proc: 1
 data_dir: ./data
 save_dir: ./caches
