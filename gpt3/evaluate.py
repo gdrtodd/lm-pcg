@@ -161,32 +161,33 @@ def infer_and_eval(model,simulations, model_name, exp_no):
     
 
     df = pd.DataFrame(generations)
+    path = f"exp_results/result_{model_name}_{temp}-temp_{top_p}-top_p_simulations-{simulations}_exp-no_{exp_no}.csv"
+    df.to_csv(path)
     
-    df.to_csv(f"exp_results/result_{model_name}_{temp}-temp_{top_p}-top_p_simulations-{simulations}_exp-no_{exp_no}.csv")
-    
-    
-    playability = df.loc[df.is_playable != False]# Playability
-    novelty = df.loc[df.is_novel != False]# novelty
-    overall_diversity = get_diversity(generations["level"],5) #Diversity
-    dpn = playability.loc[playability.is_novel != False] # Diversity of set of playable and novel levels
+    #print(df.head())
+    df = pd.read_csv(path,index_col=0)
+    playability = df.loc[df.is_playable != 'False']# Playability
+    novelty = df.loc[df.is_novel != 'False']# novelty
+    overall_diversity = get_diversity(df["level"],5) #Diversity
+    dpn = playability.loc[playability.is_novel != 'False'] # Diversity of set of playable and novel levels
     #diversity_of_playable_novel =  get_diversity(dpn["level"],5) #Diversity of playable and novel levels
 
-    
+    #print(df.loc[df.is_playable != 'False'])
     return df, playability.shape[0], overall_diversity, novelty.shape[0]#, diversity_of_playable_novel/is_dpn["level"]
-        
+          
 
 def eval_only(path,simulations):
 
     df = pd.read_csv(path,index_col=0)
     #print(df.head())
-    playability = df.loc[df.is_playable != False]# Playability
-    novelty = df.loc[df.is_novel != False]# novelty
+    playability = df.loc[df.is_playable != 'False']# Playability
+    novelty = df.loc[df.is_novel != 'False']# novelty
     overall_diversity = get_diversity(df["level"],5) #Diversity
-    dpn = playability.loc[playability.is_novel != False] # Diversity of set of playable and novel levels
+    dpn = playability.loc[playability.is_novel != 'False'] # Diversity of set of playable and novel levels
     #diversity_of_playable_novel =  get_diversity(dpn["level"],5) #Diversity of playable and novel levels
 
-    
-    return df, playability.shape[0], overall_diversity/simulations, novelty.shape[0]#, diversity_of_playable_novel/is_dpn["level"]
+    #print(df.loc[df.is_playable != 'False'])
+    return df, playability.shape[0], overall_diversity, novelty.shape[0]#, diversity_of_playable_novel/is_dpn["level"]
         
 ### CHECKPOINTS
 ### MICROBAN
@@ -223,20 +224,27 @@ model_5 = {
 model_6 = {
     "2_epochs" : "davinci:ft-gameinnovationlab:600level-sample-1-2epochs-2023-02-06-21-02-50",
     "3_epochs" : "davinci:ft-gameinnovationlab:600level-sample-1-3epochs-2023-02-06-21-48-09",
-    "6_epochs" : "davinci:ft-gameinnovationlab:600level-sample-1-4epochs-2023-02-06-21-26-43"
+    "6_epochs" : "davinci:ft-gameinnovationlab:600level-sample-1-4epochs-2023-02-06-21-26-43", # temp 0.55 
+    "10_epochs" : "davinci:ft-gameinnovationlab:600level-sample-1-10epochs-2023-02-07-14-33-50"# exp 104
 }
 
 model_7 = {
     "1_epochs" : "davinci:ft-gameinnovationlab:600level-sample-2-1epochs-2023-02-06-22-11-00"
 }
+
+### 4000Level Boxoban
+
+model_8 = {
+    "1_epochs" : "davinci:ft-gameinnovationlab:4000level-sample-1-1epochs-2023-02-07-15-03-24"
+}
 model_name = "davinci"
 
-exp_no = 101
+exp_no = 200
 
 simulations = 100
 
-df, playability, diversity, novelty, is_dqn = infer_and_eval(model_6["6_epochs"],simulations,model_name,exp_no)
-#df, playability, diversity, novelty = eval_only("exp_results/result_davinci_0.55-temp_1-top_p_simulations-100_exp-no_100.csv",simulations)
+df, playability, diversity, novelty = infer_and_eval(model_8["1_epochs"],simulations,model_name,exp_no)
+#df, playability, diversity, novelty = eval_only("exp_results/result_davinci_0.55-temp_1-top_p_simulations-10_exp-no_102.csv",simulations)
 
 
 print(f'Playability:{playability/simulations}, diversity: {diversity/simulations}, Novelty: {novelty/simulations}')# , Diversity of playable and novel levels: {is_dqn/simulations}')    

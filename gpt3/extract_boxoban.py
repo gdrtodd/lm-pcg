@@ -70,7 +70,7 @@ def create_data(prompts, completions, prompt_type):
             prompt = {"prompt": "Map: ->", "completion": f" {completions[i][:-2]}. END"}
             data.append(prompt)
 
-    with open("data_000.jsonl", "w") as f:
+    with open("data_4000.jsonl", "w") as f:
         for item in data:
             f.write(json.dumps(item) + "\n")
 
@@ -86,4 +86,4 @@ def get_data(file):
 
 
 
-get_data("data_000.txt")
+get_data("data_4000.txt")

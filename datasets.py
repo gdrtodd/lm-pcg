@@ -598,4 +598,5 @@ if __name__ == '__main__':
     b = AnnotatedSokobanDataset(None,
                                 "gpt2",
                                 annotation_keys=["width", "height", "solution_len"],
-                                holdout_solution_lens=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+                                holdout_solution_lens=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                                sample_prop=0.008)
