@@ -10,6 +10,7 @@ class Config:
 
     # Dataset
     game: str = "sokoban"
+    source: str = "boxoban"  # choices=["boxoban", "microban"]
     level_key: str = "level"
     annotation_keys: typing.Optional[typing.List[str]] = None
     num_annotation_buckets: typing.Optional[int] = None
@@ -30,13 +31,16 @@ class Config:
     overwrite: bool = False  # Overwrite the output directory if it exists (otherwise, attempt to load train state)
     seed: int = 42
     batch_size: int = 16
-    epochs: int = 20
+    # epochs: int = 20
+    num_train_steps: int = 100000
     save_freq: int = 1000
     eval_freq: int = 1000
     no_log: bool = False
 
     # Generation
-    num_eval_samples: int = 20
+    render: bool = False
+    num_eval_proc: int = 1
+    num_eval_samples: int = 10
     gen_freq: int = 500
     gen_len: int = 128
     gen_temp: float = 1

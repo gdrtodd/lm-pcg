@@ -17,6 +17,17 @@ The config files are located in `config/`. Settings can be changed in `config/co
 python train_lm.py batch_size=32
 ```
 
+The hyperpameter sweeps used to generate the results in the paper are located in `config/experiment/`. E.g., running `python train_lm.py +experiment=model -m` will launch a sweep overr model types.
+
+## Evaluation
+
+To evaluate
+```
+python evaluate.py +experiment=models
+```
+Add `render=True` to save images and gifs of generated levels and their nearest neighbor in the training set (measured by hamming distance).
+
+To run a cross-evaluation (aggregating the results from evaluations above to compare the effect of different hyperparameters), run TODO
 
 
 ## Datasets
