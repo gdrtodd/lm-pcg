@@ -5,7 +5,7 @@ from Levenshtein import distance
 
 from helpers import h5_to_df
 from sokoban_solvers import EnhancedAStarAgent, State
-
+import networkx as nx
 
 
 
@@ -31,7 +31,7 @@ def training_levels(path, is_h5=True):
     
 
 
-def is_unique(level):
+def is_novel(level):
     """
     Function to calculate diversity
     """
@@ -74,17 +74,17 @@ def is_playable(level, verbose=False):
 
         # Check if the level can be solved by an ASTAR agent
         level_state = State().stringInitialize(level.split("\n"))
-        solution, node, iters = solver.getSolution(level_state, maxIterations=1000000000000000000000)
+        solution, node, iters = solver.getSolution(level_state, maxIterations=1e7)
         if not node.checkWin():
-            if verbose: print("--Level cannot be solved (... in 50k steps)--")
-            #return True
+            if verbose: print(f"--Level cannot be solved (... in {iters} steps)--")
+            return False
         elif verbose:
             print(f"++Level can be solved in {len(solution)} moves++")
 
         return solution
 
 
-def is_novel(series, row_index):
+def is_diverse(series, row_index):
     """
     Function to calculate novelty
     """
@@ -97,12 +97,45 @@ def is_novel(series, row_index):
             
     return True#np.mean(distances)
 
+def get_diversity(levels, novelty_threshold, clique_limit=1000000):
+        '''
+        Returns the 'diversity' of a set of levels, defined as the size of the largest subset of levels
+        that are all at least 'novelty_threshold' edit distance away from each other. We compute this 
+        by constructing a graph where levels are adjacent if their edit distance is at least the threshold,
+        and then finding the size of the largest clique in the graph.
+        '''
 
-def eval(model,simulations, model_name, exp_no):
+        graph = nx.Graph()
+        graph.add_nodes_from(range(len(levels)))
+
+        edges = []
+        for i in range(len(levels)):
+            for j in range(i+1, len(levels)):
+                if distance(levels[i], levels[j]) >= novelty_threshold:
+                    edges.append((i, j))
+
+        graph.add_edges_from(edges)
+
+        biggest_clique = -1
+        num_cliques = 0
+
+        for clique in nx.find_cliques(graph):
+            if len(clique) > biggest_clique:
+                biggest_clique = len(clique)
+            num_cliques += 1
+
+            if num_cliques > clique_limit:
+                break
+
+
+        return biggest_clique
+
+
+def infer_and_eval(model,simulations, model_name, exp_no):
 
     generations = {}
     generations["level"] = []
-    generations["is_unique"] = []
+    #generations["is_diverse"] = []
     generations["is_novel"] = []
     generations["is_playable"] = []
 
@@ -120,24 +153,40 @@ def eval(model,simulations, model_name, exp_no):
                                       )
         
         level = gen["choices"][0]["text"][1:]
-        
+        print(level)
         generations["level"].append(level)
-        generations["is_unique"].append(is_unique(level))
+        generations["is_novel"].append(is_novel(level))
         generations["is_playable"].append(is_playable(level, verbose = True))
-        generations["is_novel"].append(is_novel(generations["level"],len(generations["level"])-1))
+        #generations["is_diverse"].append(is_diverse(generations["level"],len(generations["level"])-1))
     
 
     df = pd.DataFrame(generations)
-    is_p = df.loc[df.is_playable != False]# Playability
-    is_u = is_p.loc[is_p.is_unique != False]# Diversity
-    is_n = df.loc[df.is_novel != False]# novelty
     
-    is_dpn = is_p.loc[is_p.is_novel != False] # Diversity of set of playable and novel levels
+    df.to_csv(f"exp_results/result_{model_name}_{temp}-temp_{top_p}-top_p_simulations-{simulations}_exp-no_{exp_no}.csv")
+    
+    
+    playability = df.loc[df.is_playable != False]# Playability
+    novelty = df.loc[df.is_novel != False]# novelty
+    overall_diversity = get_diversity(generations["level"],5) #Diversity
+    dpn = playability.loc[playability.is_novel != False] # Diversity of set of playable and novel levels
+    #diversity_of_playable_novel =  get_diversity(dpn["level"],5) #Diversity of playable and novel levels
 
-
-    df.to_csv(f"exp_results/result_{model_name}_{temp}-temp_{top_p}-top_p_{exp_no}.csv")
-    return df, is_p.shape[0], is_u.shape[0], is_n.shape[0], is_dpn.shape[0]
+    
+    return df, playability.shape[0], overall_diversity, novelty.shape[0]#, diversity_of_playable_novel/is_dpn["level"]
         
+
+def eval_only(path,simulations):
+
+    df = pd.read_csv(path,index_col=0)
+    #print(df.head())
+    playability = df.loc[df.is_playable != False]# Playability
+    novelty = df.loc[df.is_novel != False]# novelty
+    overall_diversity = get_diversity(df["level"],5) #Diversity
+    dpn = playability.loc[playability.is_novel != False] # Diversity of set of playable and novel levels
+    #diversity_of_playable_novel =  get_diversity(dpn["level"],5) #Diversity of playable and novel levels
+
+    
+    return df, playability.shape[0], overall_diversity/simulations, novelty.shape[0]#, diversity_of_playable_novel/is_dpn["level"]
         
 ### CHECKPOINTS
 ### MICROBAN
@@ -182,10 +231,12 @@ model_7 = {
 }
 model_name = "davinci"
 
-exp_no = 16
+exp_no = 101
 
 simulations = 100
 
-df, is_p, is_u, is_n, is_dqn = eval(model_6["6_epochs"],simulations,model_name,exp_no)
+df, playability, diversity, novelty, is_dqn = infer_and_eval(model_6["6_epochs"],simulations,model_name,exp_no)
+#df, playability, diversity, novelty = eval_only("exp_results/result_davinci_0.55-temp_1-top_p_simulations-100_exp-no_100.csv",simulations)
 
-print(f'Playability:{is_p/simulations}, Uniqueness: {is_u/simulations}, Novelty: {is_n/simulations}, Diversity of playable and novel levels: {is_dqn/simulations}')    
+
+print(f'Playability:{playability/simulations}, diversity: {diversity/simulations}, Novelty: {novelty/simulations}')# , Diversity of playable and novel levels: {is_dqn/simulations}')    
