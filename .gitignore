@@ -1,5 +1,8 @@
-# Our custom log directory
+# Our custom log directory (checkpoints, tensorboard logs, etc.)
 logs
+
+# Evaluation results
+results
 
 # hydra output
 outputs
