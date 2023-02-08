@@ -26,7 +26,10 @@ def collect_checkpoints(sweep_configs: List[Config], hyperparams):
             print(f"Checkpoint found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])} at {cfg.num_train_steps} steps")
         else:
             # Get any other checkpoint files
-            ckpt_files = glob.glob(os.path.join(run_dir, "checkpoint-*"))
+            # glob misbehaves when run_dir contains, e.g. annotation_keys:['solution_len']. Huh!
+            # ckpt_files = glob.glob(os.path.join(run_dir, "checkpoint-*"))
+            ckpt_files = [os.path.join(run_dir, file) for file in os.listdir(run_dir) if file.startswith("checkpoint-")]
+
             # Get only the file name of each path above
             ckpt_files = [os.path.basename(file) for file in ckpt_files]
             print(f"Checkpoint not found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])}. Saved checkpoints: {ckpt_files}")
