@@ -62,7 +62,7 @@ def create_data(prompts, completions, prompt_type):
     data = []
     if prompt_type == "parser":
         for i, parser in enumerate(prompts):
-            prompt = {"prompt": f"{parser}->", "completion": f" {completions[i]}. END"}
+            prompt = {"prompt": f"{parser}->", "completion": f" {completions[i][:-2]}. END"}
             data.append(prompt)
 
     elif prompt_type == "sampler":
@@ -78,12 +78,18 @@ def create_data(prompts, completions, prompt_type):
 def get_data(file):
     prompts = extract_patterns_info(file)
     completions = extract_patterns_to_list(file)
-    data = create_data(prompts, completions,prompt_type="sampler")
-    df = pd.DataFrame({'level':completions})
-    df.to_csv("levels.csv")
+
+    comps = []
+
+    for completion in completions:
+        comps.append(completion[:-2])
+
+    data = create_data(prompts, comps,prompt_type="sampler")
+    df = pd.DataFrame({'level':comps})
+    df.to_csv("data_000.csv")
 
 
 
 
 
-get_data("data_4000.txt")
+get_data("data_000.txt")

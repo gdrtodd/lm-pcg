@@ -7,9 +7,7 @@ from helpers import h5_to_df
 from sokoban_solvers import EnhancedAStarAgent, State
 import networkx as nx
 
-
-
-
+from datasets import AnnotatedSokobanDataset
 
 
 import openai
@@ -17,7 +15,7 @@ os.environ['OPENAI_API_KEY'] = "sk-I321ZJVEoaHUVIyV02PhT3BlbkFJfEEk7lg5vBRhpeEqe
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
-TRAIN_PATH = "levels.csv"
+TRAIN_PATH = "data_000.csv"
 
 def training_levels(path, is_h5=True):
     """
@@ -31,11 +29,18 @@ def training_levels(path, is_h5=True):
     
 
 
-def is_novel(level):
+def is_novel(level, novelty_threshold=5):
     """
     Function to calculate diversity
     """
-    return level not in training_levels(TRAIN_PATH,is_h5=False)
+    train_levels = training_levels(TRAIN_PATH,is_h5=False)
+
+    for train_level in train_levels:
+        if distance(level, train_level) < novelty_threshold:
+            return False
+
+    return True
+    
 
 
 def is_playable(level, verbose=False):
@@ -84,6 +89,7 @@ def is_playable(level, verbose=False):
         return solution
 
 
+
 def get_diversity(levels, novelty_threshold, clique_limit=1000000):
         '''
         Returns the 'diversity' of a set of levels, defined as the size of the largest subset of levels
@@ -118,6 +124,8 @@ def get_diversity(levels, novelty_threshold, clique_limit=1000000):
         return biggest_clique
 
 
+
+
 def infer_and_eval(model,simulations, model_name, exp_no):
 
     """
@@ -126,7 +134,6 @@ def infer_and_eval(model,simulations, model_name, exp_no):
 
     generations = {}
     generations["level"] = []
-    #generations["is_diverse"] = []
     generations["is_novel"] = []
     generations["is_playable"] = []
 
@@ -148,41 +155,38 @@ def infer_and_eval(model,simulations, model_name, exp_no):
         generations["level"].append(level)
         generations["is_novel"].append(is_novel(level))
         generations["is_playable"].append(is_playable(level, verbose = True))
-        #generations["is_diverse"].append(is_diverse(generations["level"],len(generations["level"])-1))
     
 
     df = pd.DataFrame(generations)
     path = f"exp_results/result_{model_name}_{temp}-temp_{top_p}-top_p_simulations-{simulations}_exp-no_{exp_no}.csv"
     df.to_csv(path)
     
-    #print(df.head())
-    df = pd.read_csv(path,index_col=0)
-    playability = df.loc[df.is_playable != 'False']# Playability
-    novelty = df.loc[df.is_novel != 'False']# novelty
-    overall_diversity = get_diversity(df["level"],5) #Diversity
-    dpn = playability.loc[playability.is_novel != 'False'] # Diversity of set of playable and novel levels
-    #diversity_of_playable_novel =  get_diversity(dpn["level"],5) #Diversity of playable and novel levels
-
-    #print(df.loc[df.is_playable != 'False'])
-    return df, playability.shape[0], overall_diversity, novelty.shape[0]#, diversity_of_playable_novel/is_dpn["level"]
+    return eval(path,simulations)
           
 
-def eval_only(path,simulations):
+def eval(path,simulations):
 
     """
     evals only.
     """
 
     df = pd.read_csv(path,index_col=0)
-    #print(df.head())
+
     playability = df.loc[df.is_playable != 'False']# Playability
     novelty = df.loc[df.is_novel != 'False']# novelty
-    overall_diversity = get_diversity(df["level"],5) #Diversity
-    dpn = playability.loc[playability.is_novel != 'False'] # Diversity of set of playable and novel levels
-    #diversity_of_playable_novel =  get_diversity(dpn["level"],5) #Diversity of playable and novel levels
+    diversity = get_diversity(df["level"],5) #Diversity
+    dpn = novelty.loc[novelty.is_playable != 'False'] # Diversity of set of playable and novel levels
+    restricted_diversity =  get_diversity(list(dpn["level"]),5) #Diversity of novel and playable levels
 
-    #print(df.loc[df.is_playable != 'False'])
-    return df, playability.shape[0], overall_diversity, novelty.shape[0]#, diversity_of_playable_novel/is_dpn["level"]
+    prop_playable = playability.shape[0]/simulations
+    diversity = diversity/simulations
+    prop_novel = novelty.shape[0]/simulations
+    restricted_diversity = restricted_diversity/simulations
+
+    return df, prop_playable, diversity, prop_novel, restricted_diversity
+
+
+
         
 ### CHECKPOINTS
 ### MICROBAN
@@ -234,12 +238,11 @@ model_8 = {
 }
 model_name = "davinci"
 
-exp_no = 104
+exp_no = 104003
 
 simulations = 100
 
-df, playability, diversity, novelty = infer_and_eval(model_6["10_epochs"],simulations,model_name,exp_no)
-#df, playability, diversity, novelty = eval_only("exp_results/result_davinci_0.55-temp_1-top_p_simulations-10_exp-no_102.csv",simulations)
+df, playability, diversity, novelty, restricted_diversity = infer_and_eval(model_6["10_epochs"],simulations,model_name,exp_no)
+#df, playability, diversity, novelty, restricted_diversity = eval("exp_results/result_davinci_0.55-temp_1-top_p_simulations-100_exp-no_104002.csv",simulations)
 
-
-print(f'Playability:{playability/simulations}, diversity: {diversity/simulations}, Novelty: {novelty/simulations}')# , Diversity of playable and novel levels: {is_dqn/simulations}')    
+print(f'Playability:{playability}, diversity: {diversity}, Novelty: {novelty}, Restricted Diversity: {restricted_diversity}')    
