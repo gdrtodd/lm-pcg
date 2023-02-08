@@ -137,9 +137,10 @@ class AnnotatedSokobanDataset(GameDataset):
         else:
             complete_dataframe = pd.read_hdf(df_cache_path, key="data") 
 
-        # TEMPORARY: microban doesn't have solution length annotation yet
-        if source == "microban":
-            assert self.annotation_keys is None and self.holdout_solution_lens is None, "Microban doesn't have solution length annotation yet."
+        # NOTE: on Microban levels, we restrict the dataframe to only those levels that have a solution length, to ensure parity
+        #       with the GPT3 experiments
+        if source in ["microban", "microban_flips", "microban_flips_rotations"]:
+            complete_dataframe = complete_dataframe.loc[complete_dataframe["solution_len"] != -1]
         
         if self.holdout_solution_lens is not None:
             self.train_dataframe = complete_dataframe.loc[~complete_dataframe["solution_len"].isin(self.holdout_solution_lens)]
