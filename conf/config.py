@@ -49,6 +49,7 @@ class Config:
     gen_top_p: float = 1.0
     gen_typical_p: float = 1.0
     sample_contexts: bool = False
+    sample_sequential: bool = False
 
 
 cs = ConfigStore.instance()

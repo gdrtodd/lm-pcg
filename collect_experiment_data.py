@@ -92,7 +92,7 @@ def collect_experiment_one_data():
         print(f"Number of eval jsons per seed: {[len([file for file in os.listdir(dir) if file.startswith('temp')]) for dir in run_dirs]}")
 
     # Ugh, figure out which eval runs didn't finish
-    temps, topps, beams = [1, 2, 3, 4], [0.33, 0.66, 1], [5, 10, 5]
+    temps, topps, beams = [1, 2, 3, 4], [0.33, 0.66, 1], [5, 10, 15]
     for model_type in model_types:
         for seed in [0, 1, 2, 3]:
             print(f"\nChecking eval runs for model type [{model_type}] and seed [{seed}]...")
@@ -103,7 +103,7 @@ def collect_experiment_one_data():
 
                 if filename not in eval_result_paths:
                     # print(f"-Missing: temp={temp}, top_p={top_p}, beam={beam}")
-                    print(f"Missing: {filename}")
+                    print(f"-Missing: {filename}")
 
     # Extract the eval sweep from seed 0 on the gpt2 model
     print("\n\nExtracting eval sweep from seed 0 on the gpt2 model...")
@@ -116,7 +116,12 @@ def collect_experiment_one_data():
     best_results = {}
 
     for path in eval_result_paths:
-        results = json.load(open(os.path.join(run_dir, path), "r"))
+        try:
+            results = json.load(open(os.path.join(run_dir, path), "r"))
+        except json.decoder.JSONDecodeError:
+            print(f"Error decoding {path}... skipping")
+            continue
+
         prop_novel_playable_accurate = results["prop_novel_playable_accurate"]
         restricted_diversity = results["restricted_diversity"]
 

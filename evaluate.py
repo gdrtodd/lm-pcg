@@ -40,18 +40,33 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             contexts = tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device)
             return_sequences = args.num_eval_samples
         
-        samples = model.generate(
-            contexts,
-            max_length=args.gen_len,
-            temperature=args.gen_temp,
-            do_sample=True,
-            top_k=args.gen_top_k,
-            top_p=args.gen_top_p,
-            typical_p=args.gen_typical_p,
-            num_beams=args.gen_beams,
-            num_return_sequences=return_sequences,
-            pad_token_id=tokenizer.eos_token_id,
-        )
+        if args.sample_sequential and not args.sample_contexts:
+            samples = [model.generate(
+                contexts,
+                max_length=args.gen_len,
+                temperature=args.gen_temp,
+                do_sample=True,
+                top_k=args.gen_top_k,
+                top_p=args.gen_top_p,
+                typical_p=args.gen_typical_p,
+                num_beams=args.gen_beams,
+                num_return_sequences=1,
+                pad_token_id=tokenizer.eos_token_id,
+            )[0] for _ in range(args.num_eval_samples)]
+
+        else:
+            samples = model.generate(
+                contexts,
+                max_length=args.gen_len,
+                temperature=args.gen_temp,
+                do_sample=True,
+                top_k=args.gen_top_k,
+                top_p=args.gen_top_p,
+                typical_p=args.gen_typical_p,
+                num_beams=args.gen_beams,
+                num_return_sequences=return_sequences,
+                pad_token_id=tokenizer.eos_token_id,
+            )
 
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
