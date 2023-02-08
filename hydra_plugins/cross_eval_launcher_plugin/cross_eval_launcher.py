@@ -1,5 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 from dataclasses import dataclass
+import sys
 import time
 
 
@@ -77,3 +78,6 @@ class CrossEvalLauncher(BaseSubmititLauncher):
             sweep_configs.append(sweep_config)
 
         cross_evaluate(sweep_configs)
+
+        # Avoid unhappy hydra
+        sys.exit()

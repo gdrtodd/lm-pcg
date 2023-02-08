@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,21 @@ from conf.config import Config
 from utils import get_run_name
 
 
+def collect_checkpoints(sweep_configs: List[Config], hyperparams):
+    # Check whether we have a checkpoint trained to the target number of steps for each experiment.
+    for cfg in sweep_configs:
+        run_dir = os.path.join("./logs", get_run_name(cfg))
+        ckpt_file = os.path.join(run_dir, f"checkpoint-{cfg.num_train_steps}")
+        if os.path.exists(ckpt_file):
+            print(f"Checkpoint found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])} at {cfg.num_train_steps} steps")
+        else:
+            # Get any other checkpoint files
+            ckpt_files = glob.glob(os.path.join(run_dir, "checkpoint-*"))
+            # Get only the file name of each path above
+            ckpt_files = [os.path.basename(file) for file in ckpt_files]
+            print(f"Checkpoint not found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])}. Saved checkpoints: {ckpt_files}")
+
+
 @hydra.main(config_path="conf", config_name="cross_eval")
 def cross_evaluate(sweep_configs: List[Config]):
     # TODO: Could be nice to also receive the hyperparams swept over, as lists. Can tinker with `cross_eval_launcher.py`
@@ -29,6 +45,15 @@ def cross_evaluate(sweep_configs: List[Config]):
     exp_results_dir = os.path.join("./results", exp_name)
     if not os.path.exists(exp_results_dir):
         os.makedirs(exp_results_dir)
+
+    # TODO: Infer these from the sweep config
+    hyperparams = ['model', 'seed']
+
+    # Sort the configs according to the order of relevant hyperparameters above
+    sweep_configs = sorted(sweep_configs, key=lambda cfg: tuple([cfg[k] for k in hyperparams]))
+
+    collect_checkpoints(sweep_configs, hyperparams)
+    breakpoint()
 
     # Ugh, figure out which eval runs didn't finish
     temps, topps, beams = [1, 2, 3, 4], [0.33, 0.66, 1], [5, 10, 5]
