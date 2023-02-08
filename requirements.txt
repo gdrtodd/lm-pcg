@@ -4,6 +4,7 @@ networkx
 pandas
 tables
 tensorboard
+tensorflow # reading tensorboard files during cross-evaluation
 torch
 tqdm
 transformers
