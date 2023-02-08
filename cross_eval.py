@@ -8,6 +8,7 @@ import hydra
 from hydra.core.utils import JobReturn
 import numpy as np
 from omegaconf import OmegaConf
+import pandas as pd
 from hydra.core.plugins import Plugins
 from hydra.plugins.plugin import Plugin
 from matplotlib import pyplot as plt
@@ -69,58 +70,76 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     # Convert iterables to strings for sorting
     _cfgs_sortable = [[''.join(cfg[k]) if isinstance(cfg[k], Iterable) else cfg[k] for k in hyperparams] for cfg in sweep_configs]
     _cfg_sort_idxs = sorted(range(len(_cfgs_sortable)), key=lambda k: _cfgs_sortable[k])
+
+    # List of configurations sorted by the order of the hyperparameters
     sweep_configs = [sweep_configs[i] for i in _cfg_sort_idxs]
 
-    collect_checkpoints(sweep_configs, hyperparams)
-    return
+    # Create a dataframe that holds the results of each evaluation
+    main_dataframe = []
+ 
 
-
-    for cfg in sweep_configs:
-        print(f"\nChecking eval runs for model type [{cfg.model}] and seed [{cfg.seed}]...")
-        run_dir = os.path.join("./logs", get_run_name(cfg))
-        eval_result_paths = [file for file in os.listdir(run_dir) if file.startswith("temp")]
-        for temp, top_p, beam in [(temp, top_p, beam) for temp in temps for top_p in topps for beam in beams]:
-            filename = f"temp-{float(temp)}_topk-{50}_topp-{float(top_p)}_typicalp-{1.0}_beams-{beam}_threshold-{5}.json"
-
-            if filename not in eval_result_paths:
-                # print(f"-Missing: temp={temp}, top_p={top_p}, beam={beam}")
-                print(f"Missing: {filename}")
-
-    for cfg in sweep_configs:
-        print(f"\n\nExtracting eval sweep from seed {cfg.seed} on the {cfg.model} model...")
-        run_dir = os.path.join("./logs", get_run_name(cfg))
-        eval_result_paths = [file for file in os.listdir(run_dir) if file.startswith("temp")]
+    for config in sweep_configs:
+        run_dir = os.path.join("./logs", get_run_name(config))
+        eval_json_filename = f"temp-{config.gen_temp}_topk-{config.gen_top_k}_topp-{config.gen_top_p}_typicalp-{config.gen_typical_p}_beams-{config.gen_beams}_threshold-{config.novelty_threshold}.json"
         
-        best_prop_novel_playable_accurate = 0
-        best_restricted_diversity = 0
-        best_params = {}
-        best_results = {}
+        try:
+            eval_data = json.load(open(os.path.join(run_dir, eval_json_filename), "r"))
+        except (json.decoder.JSONDecodeError, FileNotFoundError) as error:
+            print(f"Issue loading JSON: {error}")
+            continue
 
-        for path in eval_result_paths:
-            results = json.load(open(os.path.join(run_dir, path), "r"))
-            prop_novel_playable_accurate = results["prop_novel_playable_accurate"]
-            restricted_diversity = results["restricted_diversity"]
+        eval_dict = {"model": config.model,
+                     "sample_prop": config.sample_prop,
+                     "annotation_keys": config.annotation_keys,
+                     "seed": config.seed,
+                     "gen_temp": config.gen_temp,
+                     "gen_top_p": config.gen_top_p,
+                     "gen_beams": config.gen_beams,
+                     "novelty_threshold": config.novelty_threshold,
+                     "prop_novel": eval_data["prop_novel"],
+                     "prop_playable": eval_data["prop_playable"],
+                     "prop_accurate": eval_data["prop_accurate"],
+                     "prop_novel_playable_accurate": eval_data["prop_novel_playable_accurate"],
+                     "diversity": eval_data["diversity"],
+                     "restricted_diversity": eval_data["restricted_diversity"]}
 
-            if restricted_diversity > best_restricted_diversity:
-                best_restricted_diversity = restricted_diversity
-                best_results = results
-                
-                temp, topk, topp, typicalp, beams, threshold = path[:-5].split("_")
-                best_params = {"temp": float(temp.split("-")[1]),
-                            "topk": int(topk.split("-")[1]),
-                            "topp": float(topp.split("-")[1]),
-                            "typicalp": float(typicalp.split("-")[1]),
-                            "beams": int(beams.split("-")[1]),
-                            "threshold": int(threshold.split("-")[1])}
+        main_dataframe.append(eval_dict)
 
-        print(f"Best eval params: {best_params}")
-        print(f"Best eval restricted diversity: {best_restricted_diversity}")
-        print("Best eval results:")
-        for k, v in list(best_results.items())[:7]:
-            print(f"  {k}: {v}")
+    main_dataframe = pd.DataFrame(main_dataframe)
+    main_dataframe.to_html("./results/main_dataframe.html")
 
+    # First, we group by the swept hyperparameters except the seed and take the average. This gives us the average evaluation scores across
+    # the seeds, for each setting of the evaluation hyperparameters
+    hyperparams.remove("seed")
+    average_over_seeds = main_dataframe.groupby(hyperparams).mean(numeric_only=True).reset_index()
+    average_over_seeds.to_html("./results/new_df.html")
 
-    # TODO: Generate pandas dataframe --> latex table
+    # Group by the remaining non-evaluation hyperparameters and take the max with respect to prop_novel_playable_accurate
+    [hyperparams.remove(param) for param in ["gen_temp", "gen_top_p", "gen_beams"]]
+    max_over_eval_hyperparams = average_over_seeds.groupby(hyperparams)
+    max_over_eval_hyperparams = max_over_eval_hyperparams.apply(lambda x: x.loc[x.restricted_diversity.idxmax()]).reset_index(drop=True)
+
+    # For display purposes, restrict to just model, novelty, playability, accuracy, all three, and diversity
+    to_display = max_over_eval_hyperparams[["model", "prop_novel", "prop_playable", "prop_accurate", "restricted_diversity"]]
+
+    # Rename the columns to be more readable and save to LaTeX, bolding the highest value in each column
+    to_display = to_display.rename(columns={"model": "Model",
+                                            "prop_novel": "Novelty",
+                                            "prop_playable": "Playability",
+                                            "prop_accurate": "Accuracy",
+                                            "restricted_diversity": "Score"})
+    to_display = to_display.round(3)
+
+    # Set up the save directory
+    save_dir = os.path.join("./results", exp_name)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    to_display = to_display.style.to_latex(os.path.join(save_dir, "eval_sweep_table.tex"),
+                                           index=False, escape=False, bold_rows=True, 
+                                           column_format="lrrrr")
+
+    print("Done!")
 
 
 

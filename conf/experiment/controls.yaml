@@ -8,9 +8,4 @@ hydra:
       # num_annotation_buckets: null
       holdout_solution_lens: [20, 30, 40, 50, 60, 70]
 
-exp_name: controls
-
-seed: 0
-holdout_solution_lens: [20, 30, 40, 50, 60, 70]
-# num_annotation_buckets: null
-annotation_keys: [solution_len]
+exp_name: controllability
