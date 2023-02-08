@@ -197,6 +197,7 @@ def main(args: Config):
     model, _, global_step = load_train_state(output_dir)
 
     model_mapping = {"gpt2": "gpt2",
+                     "gpt2-untrained": "gpt2-untrained",
                      "codeparrot": "lvwerra/codeparrot",
                      "java-gpt2": "microsoft/CodeGPT-small-java-adaptedGPT2",
                      "incoder-1B": "facebook/incoder-1B",
@@ -204,9 +205,25 @@ def main(args: Config):
 
     # Instantiate the tokenizer based on the model's
     model_name = model_mapping[args.model]
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.add_special_tokens({"pad_token": "PAD",
-                                  "bos_token": "START"})
+
+    if args.model == "gpt2-untrained":
+        tokenizer_dir = os.path.join("./caches", "gpt2-custom-tokenizer", args.game)
+
+        # Load the custom tokenizer if it exists
+        if os.path.exists(os.path.join(tokenizer_dir, "vocab.json")) and os.path.exists(os.path.join(tokenizer_dir, "merges.txt")):
+            print(f"Loading tokenizer from cache at {tokenizer_dir}...")
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
+
+            tokenizer.add_special_tokens({"pad_token": "<pad>",
+                                          "bos_token": "<s>",
+                                          "eos_token": "</s>"})
+        else:
+            exit("No custom tokenizer found for gpt2-untrained. Please run train_lm.py first.")
+
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer.add_special_tokens({"pad_token": "PAD",
+                                    "bos_token": "START"})
 
     # Instantiate the dataset
     if args.game == "sokoban":
