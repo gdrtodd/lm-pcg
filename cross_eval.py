@@ -27,12 +27,14 @@ def collect_checkpoints(sweep_configs: List[Config], hyperparams):
         else:
             # Get any other checkpoint files
             ckpt_files = glob.glob(os.path.join(run_dir, "checkpoint-*"))
+            
             # Get only the file name of each path above
             ckpt_files = [os.path.basename(file) for file in ckpt_files]
             print(f"Checkpoint not found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])}. Saved checkpoints: {ckpt_files}")
 
 
 # Call this only to initiate the hydra multirun launcher (which calls cross_eval()). This function is never entered.
+# At runtime, the cross_eval config inherits from eval.yaml, so it knows what hyperparameters we have swept over
 @hydra.main(version_base=None, config_path="conf", config_name="cross_eval")
 def dummy_cross_eval(cfg): pass 
 
@@ -42,6 +44,7 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     #   to pass this forward, or just iterate through sweep_configs and collect hyperparams of interest manually.
 
     cfg_0 = sweep_configs[0]
+
     exp_name = cfg_0.exp_name
     print("=" * 80)
     print(f"EXPERIMENT: {exp_name}")
@@ -55,11 +58,12 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     hyperparams = [k for k in sweep_params.keys()]
 
     # Prioritize the order of the hyperparameters
-    hyperparam_sort_order = ['model', 'sample_prop', 'annotation_keys', 'seed']
+    hyperparam_sort_order = ['model', 'sample_prop', 'annotation_keys', 'seed', 'gen_temp', 'gen_top_p', 'gen_beams']
     hyperparams = sorted(hyperparams, key=lambda k: hyperparam_sort_order.index(k) if k in hyperparam_sort_order else len(hyperparam_sort_order))
 
     # Sort the configs according to the order of relevant hyperparameters above
     _cfgs_sortable = [tuple([cfg[k] for k in hyperparams]) for cfg in sweep_configs]
+    
     # Convert iterables to strings for sorting
     _cfgs_sortable = [[''.join(cfg[k]) if isinstance(cfg[k], Iterable) else cfg[k] for k in hyperparams] for cfg in sweep_configs]
     _cfg_sort_idxs = sorted(range(len(_cfgs_sortable)), key=lambda k: _cfgs_sortable[k])
@@ -68,26 +72,6 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     collect_checkpoints(sweep_configs, hyperparams)
     return
 
-    # Ugh, figure out which eval runs didn't finish
-    temps, topps, beams = [1, 2, 3, 4], [0.33, 0.66, 1], [5, 10, 5]
-    for cfg in sweep_configs:
-        # FIXME: Organize these hierarchically by model, then seeds
-        run_dirs = [os.path.join("./logs", get_run_name(cfg))]
-        loss_curves = collect_loss_curves(run_dirs)
-
-        # Plot the loss curves
-        plt.figure()
-        for idx, loss_curve in enumerate(loss_curves):
-            plt.plot(loss_curve, label=f"Seed {cfg.seed}")
-        plt.title(f"Loss curves for {cfg.model}")
-        plt.xlabel("Step")
-        plt.ylabel("Loss")
-        plt.legend()
-        plt.savefig(os.path.join(exp_results_dir, f"{cfg.model}_{cfg.seed}_loss_curve.png"))
-        plt.close()
-        
-        # Print number of eval jsons
-        print(f"Number of eval jsons per seed: {[len([file for file in os.listdir(dir) if file.startswith('temp')]) for dir in run_dirs]}")
 
     for cfg in sweep_configs:
         print(f"\nChecking eval runs for model type [{cfg.model}] and seed [{cfg.seed}]...")

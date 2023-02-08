@@ -2,6 +2,5 @@
 hydra:
   sweeper:
     params:
-      # seed: 0, 1, 2, 3, 4
-      seed: range(5, 10)
+      seed: 0, 1, 2, 3, 4
       model: gpt2-untrained, gpt2, java-gpt2
