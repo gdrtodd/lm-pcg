@@ -10,6 +10,7 @@ defaults:
 
 # Dataset args
 game: sokoban
+source: boxoban
 level_key: level
 annotation_keys: null
 num_annotation_buckets: null
@@ -29,14 +30,16 @@ learning_rate: 0.0001
 exp_name: ""
 overwrite: false
 seed: 42
-batch_size: 16
-epochs: 20
+batch_size: 32
+# epochs: 25
 save_freq: 1000
 eval_freq: 1000
+num_train_steps: 100_000
 no_log: false
 
 # Generation args
-num_eval_samples: 20
+num_eval_proc: 1
+num_eval_samples: 10
 gen_freq: 500
 gen_len: 128
 gen_temp: 1
@@ -52,10 +55,6 @@ hydra:
     params:
       # We will sweep over these parameters when the `--multirun` flag is used.
 
-      batch_size: 32
-      epochs: 25
-      num_eval_samples: 100
-
       seed: 0, 1, 2, 3, 4
       model: gpt2-untrained, gpt2, java-gpt2
 
@@ -69,7 +68,7 @@ hydra:
     tasks_per_node: 1
     cpus_per_task: 8
     gpus_per_node: 1
-    timeout_min: 1440
+    timeout_min: 4320 # 3 days
     mem_gb: 30
 
   job:

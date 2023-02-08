@@ -1,14 +1,21 @@
+import hashlib
 from itertools import groupby
 import os
 import numpy as np
 import shutil
 
+import imageio
+from PIL import Image
 import torch
 from transformers import AutoModelForCausalLM
+from conf.config import Config
 
-def get_run_name(args):
+from sokoban_solvers import EnhancedAStarAgent, State
+
+def get_run_name(args: Config):
     run_name = os.path.join(
         args.game,
+        f"source:{args.source}",
         f"model:{args.model}",
         f"level_key:{args.level_key}",
         f"annotation_keys:{args.annotation_keys}",
@@ -57,7 +64,7 @@ def load_train_state(output_dir):
     return model, optimizer_state_dict, global_step
 
 BOXOBAN_MAPPING = {
-    ' ': 'empty',
+    '-': 'empty',
     '#': 'wall',
     '$': 'box',
     '.': 'goal',
@@ -173,6 +180,87 @@ def generate_l_mazes(width, height):
 
     return l_mazes, path_lens
 
+def _process_level(level):
+    '''
+    Given a boxoban level, return a dictionary containing all of the relevant information, 
+    (see comment in __init__) for details
+    '''
+
+    solver = EnhancedAStarAgent()
+
+    level_hash = _hash_level(level)
+
+    level_text = encode_boxoban_text(level)
+    level_state = State().stringInitialize(level.split("\n"))
+
+    # Remove the first line of each level, which just contains the level number
+    level = level[level.find("\n")+1:]
+
+    # Pad the level with walls to make it rectangular
+    max_width = max([len(row) for row in level.split("\n")])
+    lines = []
+
+    for line in level.split("\n"):
+        if line == "": continue
+        num_leading_spaces = len(line) - len(line.lstrip())
+        formatted = ("#" * num_leading_spaces) + line.strip() + ("#" * (max_width - len(line)))
+        lines.append(formatted)
+
+    # Fill in gaps in to top and bottom rows
+    lines[0] = lines[0].replace(" ", "#")
+    lines[-1] = lines[-1].replace(" ", "#")
+
+    # Combine the rows, strip, and replace spaces with dashes
+    level = "\n".join(lines).strip().replace(" ", "-")
+
+    width = len(level.split("\n")[0])
+    height = len(level.split("\n"))
+    num_targets = level.count("$") + level.count("*")
+    prop_empty = level.count("-") / (width * height)
+
+    solution, node, iterations = solver.getSolution(level_state, maxIterations=1_000_000, maxTime=-1)
+    if node.checkWin():
+        solution_len = len(solution)
+        print(f"Solved after {iterations} iterations.")
+    else:
+        solution_len = -1
+        solution = None
+        print(f"Failed after {iterations} iterations.")
+
+    return level, level_text, level_hash, width, height, num_targets, prop_empty, solution_len, solution
+
+def _hash_level(level):
+    return int(hashlib.md5(level.encode("utf-8")).hexdigest(), 16)
+
+
+
+def save_gif(env, lvl, sol, lvl_render_dir):
+    if not os.path.isdir(lvl_render_dir):
+        os.makedirs(lvl_render_dir)
+    j = 0
+    if sol != False:
+        frames = []
+        ep_rew = 0
+        env.reset(level_string=lvl)
+        im_name = os.path.join(lvl_render_dir, f"{j}.png")
+        im = env.render(mode='rgb_array')
+        im = Image.fromarray(im)
+        im.save(im_name)
+        frames.append(im)
+        for act_id in sol:
+            j += 1
+            obs, rew, done, info = env.step(int(act_id))
+            ep_rew += rew
+            im_name = os.path.join(lvl_render_dir, f"{j}.png")
+            im = env.render(mode='rgb_array')
+            im = Image.fromarray(im)
+            im.save(im_name)
+            frames.append(im)
+        
+        # Parent of the level directory and name of the level directory
+        render_dir, lvl_dir = os.path.split(lvl_render_dir)
+        # Save gif with fps of 3
+        imageio.mimsave(os.path.join(render_dir, f"{lvl_dir}.gif"), frames, fps=10)
 
 
 #     level = """

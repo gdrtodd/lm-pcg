@@ -37,7 +37,9 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
         next(data_loader_iter)
 
     # Calculate the total number of training steps to initialize the scheduler
-    num_train_steps = len(data_loader) * args.epochs
+    # num_train_steps = len(data_loader) * args.epochs
+    num_train_steps = args.num_train_steps
+
     scheduler = get_linear_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=int(args.warmup_proportion * num_train_steps),
@@ -50,9 +52,13 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     # Initialize the progress bar
     progress_bar = tqdm(total=num_train_steps, desc=f"Training {args.model} model")
     progress_bar.update(global_step)
+
+    done_training = False
     
     try:
-        for epoch in range(epoch, args.epochs):
+        # for epoch in range(epoch, args.epochs):
+        while not done_training:
+            epoch += 1
             for batch_i in range(batch_i, len(data_loader)):
                 global_step += 1
 
@@ -112,7 +118,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     accurate, info = dataset.is_accurate(sample, solution)
 
                     print(f"\nSample:\n{sample.replace('-', ' ')}\n")
-                    print(f"Novel: {dataset.is_novel(sample)}")    
+                    print(f"Novel: {dataset.is_novel(sample)[0]}")    
                     print(f"Playable: {solution != False}")
                     print(f"Accurate: {accurate}")
 
@@ -121,7 +127,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 if global_step%args.eval_freq == 0:
                     print(f"\nGenerating samples for evaluation at step {global_step}...")
-                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset,  args)
+                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset, args, num_proc=args.num_eval_proc)
 
                     print("Proportion of accurate levels:", prop_accurate)
                     print("Proportion of playable levels:", prop_playable)
@@ -133,6 +139,10 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                         log_writer.add_scalar("eval/prop_novel", prop_novel, global_step)
                         log_writer.add_scalar("eval/prop_accurate", prop_accurate, global_step)
                         log_writer.add_scalar("eval/diversity", diversity, global_step)
+
+                if global_step >= args.num_train_steps:
+                    done_training = True
+                    break
 
             # Reset the data loader iterator and save at the end of each epoch
             data_loader_iter = iter(data_loader)
@@ -146,7 +156,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
         progress_bar.close()
         exit("Stopping early due to user input")
 
-    print("Finished training.")
+    print(f"Finished training: {global_step} steps and {epoch} epochs.")
     progress_bar.close()
     if not args.no_log:
         save_train_state(model, optimizer, global_step, output_dir)
@@ -220,7 +230,8 @@ def main(args: Config):
 
     # Instantiate the dataset
     if args.game == "sokoban":
-        dataset = AnnotatedSokobanDataset(tokenizer,
+        dataset = AnnotatedSokobanDataset(args.source,
+                                          tokenizer,
                                           args.model,
                                           level_key=args.level_key,
                                           annotation_keys=args.annotation_keys,
