@@ -130,6 +130,9 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
                                             "restricted_diversity": "Score"})
     to_display = to_display.round(3)
 
+    # Also separately record the eval hyperparameters
+    eval_hyperparams = max_over_eval_hyperparams[["model", "gen_temp", "gen_top_p", "gen_beams"]]
+
     # Set up the save directory
     save_dir = os.path.join("./results", exp_name)
     if not os.path.exists(save_dir):
@@ -138,6 +141,8 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     to_display = to_display.style.to_latex(os.path.join(save_dir, "eval_sweep_table.tex"),
                                            index=False, escape=False, bold_rows=True, 
                                            column_format="lrrrr")
+
+    eval_hyperparams.to_csv(os.path.join(save_dir, "eval_hyperparams.csv"))
 
     print("Done!")
 
