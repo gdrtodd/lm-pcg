@@ -2,4 +2,15 @@
 hydra:
   sweeper:
     params:
-      # TODO
+      seed: range(0, 5)
+
+      # FIXME: These seem to disagree with hydra...
+      # num_annotation_buckets: null
+      holdout_solution_lens: [20, 30, 40, 50, 60, 70]
+
+exp_name: controls
+
+seed: 0
+holdout_solution_lens: [20, 30, 40, 50, 60, 70]
+# num_annotation_buckets: null
+annotation_keys: [solution_len]

@@ -32,7 +32,7 @@ class Config:
     seed: int = 42
     batch_size: int = 16
     # epochs: int = 20
-    num_train_steps: int = 100000
+    num_train_steps: int = 100_000
     save_freq: int = 1000
     eval_freq: int = 1000
     no_log: bool = False

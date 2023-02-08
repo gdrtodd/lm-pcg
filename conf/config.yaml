@@ -20,7 +20,7 @@ novelty_threshold: 5
 sample_prop: null
 
 # Model args
-model: java-gpt2
+model: gpt2
 warmup_proportion: 0.0002
 weight_decay: 0.01
 max_grad_norm: 1
@@ -57,7 +57,7 @@ hydra:
       # We will sweep over these parameters when the `--multirun` flag is used.
 
       seed: 0, 1, 2, 3, 4
-      model: gpt2-untrained, gpt2, java-gpt2
+      # model: gpt2-untrained, gpt2, java-gpt2
 
       # learning_rate: 0.00001, 0.0001, 0.001
       # warmup_proportion: 0.0002, 0.002, 0.02

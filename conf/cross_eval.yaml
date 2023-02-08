@@ -1,0 +1,4 @@
+defaults:
+  - config
+  - _self_
+  - override hydra/launcher: cross-eval
