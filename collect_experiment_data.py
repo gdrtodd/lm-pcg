@@ -1,4 +1,6 @@
 import json
+import matplotlib.pyplot as plt
+from matplotlib.scale import LogScale
 import numpy as np
 import os
 from tensorflow.python.summary.summary_iterator import summary_iterator
@@ -66,7 +68,7 @@ def collect_experiment_one_data():
     args = ExperimentOneArgs()
 
     model_types = ["gpt2", "gpt2-untrained", "java-gpt2"]
-    seeds = [5, 6, 7, 8, 9]
+    seeds = [0, 1, 2, 3, 4]
 
     for model_type in model_types:
         print(f"\nCollecting data for model type: {model_type}...")
@@ -74,11 +76,38 @@ def collect_experiment_one_data():
         run_dirs = [os.path.join("./logs", get_run_name(args.set({"model": model_type, "seed": seed}))) for seed in seeds]
         print(f"Data exists for seeds {seeds}: {[os.path.exists(dir) for dir in run_dirs]}")
         loss_curves = collect_loss_curves(run_dirs)
-        print(f"Number of steps run for each seed: {[len(curve) for curve in loss_curves]}")
 
-    # Extract the eval sweep from seed 5 on the gpt2 model
-    print("\n\nExtracting eval sweep from seed 5 on the gpt2 model...")
-    run_dir = os.path.join("./logs", get_run_name(args.set({"model": "gpt2", "seed": 5})))
+        # Plot the loss curves
+        plt.figure()
+        for idx, loss_curve in enumerate(loss_curves):
+            plt.plot(loss_curve, label=f"Seed {seeds[idx]}")
+        plt.title(f"Loss curves for {model_type}")
+        plt.xlabel("Step")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.savefig(f"./results/experiment_1/{model_type}_loss_curves.png")
+        plt.close()
+        
+        # Print number of eval jsons
+        print(f"Number of eval jsons per seed: {[len([file for file in os.listdir(dir) if file.startswith('temp')]) for dir in run_dirs]}")
+
+    # Ugh, figure out which eval runs didn't finish
+    temps, topps, beams = [1, 2, 3, 4], [0.33, 0.66, 1], [5, 10, 5]
+    for model_type in model_types:
+        for seed in [0, 1, 2, 3]:
+            print(f"\nChecking eval runs for model type [{model_type}] and seed [{seed}]...")
+            run_dir = os.path.join("./logs", get_run_name(args.set({"model": model_type, "seed": seed})))
+            eval_result_paths = [file for file in os.listdir(run_dir) if file.startswith("temp")]
+            for temp, top_p, beam in [(temp, top_p, beam) for temp in temps for top_p in topps for beam in beams]:
+                filename = f"temp-{float(temp)}_topk-{50}_topp-{float(top_p)}_typicalp-{1.0}_beams-{beam}_threshold-{5}.json"
+
+                if filename not in eval_result_paths:
+                    # print(f"-Missing: temp={temp}, top_p={top_p}, beam={beam}")
+                    print(f"Missing: {filename}")
+
+    # Extract the eval sweep from seed 0 on the gpt2 model
+    print("\n\nExtracting eval sweep from seed 0 on the gpt2 model...")
+    run_dir = os.path.join("./logs", get_run_name(args.set({"model": "gpt2", "seed": 0})))
     eval_result_paths = [file for file in os.listdir(run_dir) if file.startswith("temp")]
     
     best_prop_novel_playable_accurate = 0
@@ -106,7 +135,7 @@ def collect_experiment_one_data():
     print(f"Best eval params: {best_params}")
     print(f"Best eval restricted diversity: {best_restricted_diversity}")
     print("Best eval results:")
-    for k, v in list(best_results.items())[:6]:
+    for k, v in list(best_results.items())[:7]:
         print(f"  {k}: {v}")
 
 
