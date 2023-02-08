@@ -29,8 +29,6 @@ from hydra.core.utils import (
     setup_globals,
 )
 
-from cross_eval import cross_evaluate
-
 # IMPORTANT:
 # If your plugin imports any module that takes more than a fraction of a second to import,
 # Import the module lazily (typically inside sweep()).
@@ -77,7 +75,10 @@ class CrossEvalLauncher(BaseSubmititLauncher):
                 sweep_config.hydra.job.num = idx
             sweep_configs.append(sweep_config)
 
-        cross_evaluate(sweep_configs)
+        sweep_params = self.config.hydra.sweeper.params
+
+        from cross_eval import cross_evaluate
+        cross_evaluate(sweep_configs, sweep_params)
 
         # Avoid unhappy hydra
         sys.exit()

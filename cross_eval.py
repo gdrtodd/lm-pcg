@@ -2,10 +2,11 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import List, Any, Sequence
+from typing import Dict, Iterable, List, Any, Sequence
 
 import hydra
 from hydra.core.utils import JobReturn
+import numpy as np
 from omegaconf import OmegaConf
 from hydra.core.plugins import Plugins
 from hydra.plugins.plugin import Plugin
@@ -31,8 +32,12 @@ def collect_checkpoints(sweep_configs: List[Config], hyperparams):
             print(f"Checkpoint not found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])}. Saved checkpoints: {ckpt_files}")
 
 
-@hydra.main(config_path="conf", config_name="cross_eval")
-def cross_evaluate(sweep_configs: List[Config]):
+# Call this only to initiate the hydra multirun launcher (which calls cross_eval()). This function is never entered.
+@hydra.main(version_base=None, config_path="conf", config_name="cross_eval")
+def dummy_cross_eval(cfg): pass 
+
+
+def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     # TODO: Could be nice to also receive the hyperparams swept over, as lists. Can tinker with `cross_eval_launcher.py`
     #   to pass this forward, or just iterate through sweep_configs and collect hyperparams of interest manually.
 
@@ -46,14 +51,22 @@ def cross_evaluate(sweep_configs: List[Config]):
     if not os.path.exists(exp_results_dir):
         os.makedirs(exp_results_dir)
 
-    # TODO: Infer these from the sweep config
-    hyperparams = ['model', 'seed']
+    # Names of the hyperparameters being swept over in the experiment
+    hyperparams = [k for k in sweep_params.keys()]
+
+    # Prioritize the order of the hyperparameters
+    hyperparam_sort_order = ['model', 'sample_prop', 'annotation_keys', 'seed']
+    hyperparams = sorted(hyperparams, key=lambda k: hyperparam_sort_order.index(k) if k in hyperparam_sort_order else len(hyperparam_sort_order))
 
     # Sort the configs according to the order of relevant hyperparameters above
-    sweep_configs = sorted(sweep_configs, key=lambda cfg: tuple([cfg[k] for k in hyperparams]))
+    _cfgs_sortable = [tuple([cfg[k] for k in hyperparams]) for cfg in sweep_configs]
+    # Convert iterables to strings for sorting
+    _cfgs_sortable = [[''.join(cfg[k]) if isinstance(cfg[k], Iterable) else cfg[k] for k in hyperparams] for cfg in sweep_configs]
+    _cfg_sort_idxs = sorted(range(len(_cfgs_sortable)), key=lambda k: _cfgs_sortable[k])
+    sweep_configs = [sweep_configs[i] for i in _cfg_sort_idxs]
 
     collect_checkpoints(sweep_configs, hyperparams)
-    breakpoint()
+    return
 
     # Ugh, figure out which eval runs didn't finish
     temps, topps, beams = [1, 2, 3, 4], [0.33, 0.66, 1], [5, 10, 5]
@@ -126,4 +139,4 @@ def cross_evaluate(sweep_configs: List[Config]):
 
 
 if __name__ == "__main__":
-    cross_evaluate()
+    dummy_cross_eval()
