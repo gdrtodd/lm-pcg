@@ -60,7 +60,7 @@ class EvalConfig(Config):
 class CrossEvalConfig(EvalConfig):
 
     # This cross-eval refers to the sweep defined at `conf/experiment/EXPERIMENT.yaml`
-    experiment: str = "models"
+    sweep: str = "models"
 
     # Printout the latest checkpoints for each experiment in the sweep.
     report_progress: bool = True

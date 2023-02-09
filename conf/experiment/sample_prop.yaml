@@ -8,4 +8,3 @@ hydra:
       sample_prop: 0.001, 0.01, 0.1
 
 exp_name: dataset_size
-model: gpt2

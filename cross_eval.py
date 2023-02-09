@@ -54,7 +54,7 @@ def process_hyperparam_str(hp_str: str) -> tuple:
 def main(config: CrossEvalConfig):
     # Load up eval hyperparameters from conf/eval.yaml
     eval_sweep_params = yaml.load(open("conf/eval.yaml", "r"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
-    train_sweep_params = yaml.load(open(f"conf/experiment/{config.experiment}.yaml"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
+    train_sweep_params = yaml.load(open(f"conf/experiment/{config.sweep}.yaml"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
     eval_sweep_params = {k: process_hyperparam_str(v) for k, v in eval_sweep_params.items()}
     train_sweep_params = {k: process_hyperparam_str(v) for k, v in train_sweep_params.items()}
     sweep_params = {**train_sweep_params, **eval_sweep_params}

@@ -30,9 +30,9 @@ Add `render=True` to save images and gifs of generated levels and their nearest 
 ## Cross-evaluation
 To run a cross-evaluation (aggregating the results from evaluations above to compare the effect of different hyperparameters), run:
 ```
-python cross_eval.py experiment=models
+python cross_eval.py sweep=models
 ```
-
+Here, we sweep across the train hyperparameters in `conf/experiment/models.yaml` (with the name of the yaml file passed as the `sweep` arguemtn), and the eval hyperparameters in `conf/eval.yaml`.
 
 ## Datasets
 

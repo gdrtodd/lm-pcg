@@ -7,5 +7,4 @@ hydra:
       seed: range(0, 10)
       source: microban, microban_flips, microban_flips_rotations
 
-model: gpt2
 exp_name: microban
