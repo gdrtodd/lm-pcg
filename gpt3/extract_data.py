@@ -4,13 +4,17 @@ import json
 from helpers import h5_to_df
 
 
-def extract_data(series, filename):
+def extract_data(df, filename, experiment):
 
     data = []
-    completions = list(series)
+    completions = list(df["level"])
+    sol_len = list(df["solution_len"])
     #print(completions)
-    for i in series:
-        prompt = {"prompt": f"Map: ->", "completion": f" {i}. END"}
+    for i in range(0,df.shape[0]):
+        if experiment == "sample":
+            prompt = {"prompt": f"Map: ->", "completion": f" {completions[i]}. END"}
+        elif experiment == "control":
+            prompt = {"prompt": f"solution length = {sol_len[i]}: ->", "completion": f" {completions[i]}. END"}
         data.append(prompt)
     with open(filename, "w") as f:
         for item in data:
@@ -22,6 +26,6 @@ def main():
     
     file_path = "microban_data.h5"
     df = h5_to_df(file_path)
-    extract_data(df["level"], "microban.jsonl")
+    extract_data(df, "microban_control.jsonl", "control")
 
 main()

@@ -18,7 +18,15 @@ def training_levels(path, is_h5=True):
         df = pd.read_csv(path)
     return list(df.level)
     
-
+def is_accurate(level_sol_len,tolerance=5):
+    """
+    Returns True if accurate and False otherwise.
+    """
+    lower_tolerance = level_sol_len - tolerance
+    upper_tolerance = level_sol_len + tolerance
+    if lower_tolerance < level_sol_len < upper_tolerance:
+        return True
+    return False
 
 def is_novel(level,dataset, novelty_threshold=5):
     """
