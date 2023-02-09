@@ -53,6 +53,7 @@ class Config:
 
 @dataclass
 class EvalConfig(Config):
+    num_eval_samples: int = 100
     num_eval_proc: int = 10  # For computing solutions in parallel
     render: bool = False
 
