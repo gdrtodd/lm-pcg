@@ -3,7 +3,6 @@ import typing
 
 from hydra.core.config_store import ConfigStore
 
-
 @dataclass
 class Config:
     """This class provides a "schema" for the config file, validating types."""
@@ -32,7 +31,7 @@ class Config:
     seed: int = 42
     batch_size: int = 16
     # epochs: int = 20
-    num_train_steps: int = 100000
+    num_train_steps: int = 100_000
     save_freq: int = 1000
     eval_freq: int = 1000
     no_log: bool = False
@@ -49,7 +48,25 @@ class Config:
     gen_top_p: float = 1.0
     gen_typical_p: float = 1.0
     sample_contexts: bool = False
+    sample_sequential: bool = False
+    eval_tolerance: int = 5
+
+@dataclass
+class EvalConfig(Config):
+    num_eval_proc: int = 10  # For computing solutions in parallel
+    render: bool = False
+
+@dataclass
+class CrossEvalConfig(EvalConfig):
+
+    # This cross-eval refers to the sweep defined at `conf/experiment/EXPERIMENT.yaml`
+    sweep: str = "models"
+
+    # Printout the latest checkpoints for each experiment in the sweep.
+    report_progress: bool = True
 
 
 cs = ConfigStore.instance()
 cs.store(name="base_config", node=Config)
+cs.store(name="eval_config", node=EvalConfig)
+cs.store(name="cross_eval_config", node=CrossEvalConfig)

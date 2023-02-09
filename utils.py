@@ -1,6 +1,7 @@
 import hashlib
 from itertools import groupby
 import os
+from typing import List
 import numpy as np
 import shutil
 
@@ -11,6 +12,9 @@ from transformers import AutoModelForCausalLM
 from conf.config import Config
 
 from sokoban_solvers import EnhancedAStarAgent, State
+
+class CheckpointNotFoundError(FileNotFoundError):
+    pass
 
 def get_run_name(args: Config):
     run_name = os.path.join(
@@ -26,6 +30,21 @@ def get_run_name(args: Config):
         f"seed-{args.seed}",
     )
     return run_name
+
+def filter_configs(cfgs: List[Config]):
+    new_cfgs = []
+    for cfg in cfgs:
+        if is_valid_config(cfg):
+            new_cfgs.append(cfg)
+    return new_cfgs
+
+def is_valid_config(cfg: Config) -> bool:
+    """ When manually sweeping over hyperparams, identify combinations."""
+    if cfg.holdout_solution_lens is not None and cfg.annotation_keys is None:
+        # Cannot hold out prompts when model is not trained to match prompts (?)
+        return False
+    return True
+
 
 def save_train_state(model, optimizer, global_step, output_dir):
     # Get paths of any previous checkpoints
@@ -51,15 +70,26 @@ def load_train_state(output_dir):
     prior_checkpoint_paths = sorted(prior_checkpoint_paths, key=lambda x: int(x.split("-")[-1]))
     
     if len(prior_checkpoint_paths) == 0:
-        raise FileNotFoundError(f"No checkpoints found at {output_dir}. Exiting.")
+        raise CheckpointNotFoundError(f"No checkpoints found at {output_dir}.")
 
-    output_dir = prior_checkpoint_paths[-1]
 
-    # Load
-    model = AutoModelForCausalLM.from_pretrained(output_dir)
-    optimizer_state_dict = torch.load(os.path.join(output_dir, "optimizer.pt"), map_location=device)
-    with open(os.path.join(output_dir, "global_step.txt"), "r") as f:
-        global_step = int(f.read())
+    # Attempt to load most recent checkpoints, settling for earlier ones if we encounter errors.
+    while len(prior_checkpoint_paths) > 0:
+        ckpt_dir = prior_checkpoint_paths.pop(-1)
+
+        try:
+            # Load
+            model = AutoModelForCausalLM.from_pretrained(ckpt_dir)
+            optimizer_state_dict = torch.load(os.path.join(ckpt_dir, "optimizer.pt"), map_location=device)
+            with open(os.path.join(ckpt_dir, "global_step.txt"), "r") as f:
+                global_step = int(f.read())
+            print(f"Loaded checkpoint from {ckpt_dir}.")
+        except Exception as e:
+            print(f"Error loading checkpoint from {ckpt_dir}: {e}")
+            if len(prior_checkpoint_paths) == 0:
+                raise CheckpointNotFoundError(f"Could not load any of the checkpoints found at {ckpt_dir}.")
+            else:
+                print(f"Attempting to load earlier checkpoint...")
 
     return model, optimizer_state_dict, global_step
 

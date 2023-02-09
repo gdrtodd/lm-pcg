@@ -137,9 +137,10 @@ class AnnotatedSokobanDataset(GameDataset):
         else:
             complete_dataframe = pd.read_hdf(df_cache_path, key="data") 
 
-        # TEMPORARY: microban doesn't have solution length annotation yet
-        if source == "microban":
-            assert self.annotation_keys is None and self.holdout_solution_lens is None, "Microban doesn't have solution length annotation yet."
+        # NOTE: on Microban levels, we restrict the dataframe to only those levels that have a solution length, to ensure parity
+        #       with the GPT3 experiments
+        if source in ["microban", "microban_flips", "microban_flips_rotations"]:
+            complete_dataframe = complete_dataframe.loc[complete_dataframe["solution_len"] != -1]
         
         if self.holdout_solution_lens is not None:
             self.train_dataframe = complete_dataframe.loc[~complete_dataframe["solution_len"].isin(self.holdout_solution_lens)]
@@ -330,7 +331,7 @@ class AnnotatedSokobanDataset(GameDataset):
 
         return self._format_annotation(annotation_values)
 
-    def is_accurate(self, annotated_level, solution):
+    def is_accurate(self, annotated_level, solution, tolerance=None):
         '''
         Returns whether a given level is accurate (i.e. each of the annotation values match the actual observed values)
         '''
@@ -364,9 +365,11 @@ class AnnotatedSokobanDataset(GameDataset):
             key, value = annotation_line.split(": ")
 
             observed_value = level_info[key.lower().replace(" ", "_")]
+
             if observed_value is None:
                 return False, level_info
 
+            # Check if the observed value falls within the specified bucket
             if self.num_annotation_buckets is not None:
                 lower, upper = [float(val) for val in value.split(" to ")]
                 if observed_value is None:
@@ -374,6 +377,12 @@ class AnnotatedSokobanDataset(GameDataset):
                 if not (lower <= observed_value < upper):
                     return False, level_info
 
+            # Check if the observed value is within the specified tolerance
+            elif tolerance is not None:
+                if abs(float(value) - observed_value) > tolerance:
+                    return False, level_info
+
+            # Check if the observed value is exactly equal to the specified value
             else:
                 if float(value) != observed_value:
                     return False, level_info

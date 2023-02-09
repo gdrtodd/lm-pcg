@@ -6,6 +6,6 @@ hydra:
       # seed: range(5, 10)
       seed: range(0, 10)
 
-      sample_prop: 0.001, 0.01, 0.1
+      source: microban, microban_flips, microban_flips_rotations
 
-exp_name: dataset_size
+exp_name: microban

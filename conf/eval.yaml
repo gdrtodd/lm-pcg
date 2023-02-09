@@ -1,16 +1,16 @@
 defaults:
   - config
+  - eval_config
   - _self_
-
-  # - override hydra/launcher: submitit_local
-  - override hydra/launcher: submitit_slurm
-
-
-render: false
-num_eval_proc: 10  # For computing solutions in parallel
 
 
 hydra:
+  sweeper:
+    params:
+      gen_temp: 1, 2, 3, 4
+      gen_top_p: 0.33, 0.66, 1
+      gen_beams: 5, 10, 15
+
   # SLURM-specific arguments
   launcher:
     tasks_per_node: 1

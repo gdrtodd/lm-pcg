@@ -40,18 +40,33 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             contexts = tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device)
             return_sequences = args.num_eval_samples
         
-        samples = model.generate(
-            contexts,
-            max_length=args.gen_len,
-            temperature=args.gen_temp,
-            do_sample=True,
-            top_k=args.gen_top_k,
-            top_p=args.gen_top_p,
-            typical_p=args.gen_typical_p,
-            num_beams=args.gen_beams,
-            num_return_sequences=return_sequences,
-            pad_token_id=tokenizer.eos_token_id,
-        )
+        if args.sample_sequential and not args.sample_contexts:
+            samples = [model.generate(
+                contexts,
+                max_length=args.gen_len,
+                temperature=args.gen_temp,
+                do_sample=True,
+                top_k=args.gen_top_k,
+                top_p=args.gen_top_p,
+                typical_p=args.gen_typical_p,
+                num_beams=args.gen_beams,
+                num_return_sequences=1,
+                pad_token_id=tokenizer.eos_token_id,
+            )[0] for _ in range(args.num_eval_samples)]
+
+        else:
+            samples = model.generate(
+                contexts,
+                max_length=args.gen_len,
+                temperature=args.gen_temp,
+                do_sample=True,
+                top_k=args.gen_top_k,
+                top_p=args.gen_top_p,
+                typical_p=args.gen_typical_p,
+                num_beams=args.gen_beams,
+                num_return_sequences=return_sequences,
+                pad_token_id=tokenizer.eos_token_id,
+            )
 
     # Decode samples
     samples = [dataset.decode(sample) for sample in samples]
@@ -62,21 +77,19 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         if verbose: print("Computing solutions...")
         solutions = [dataset.get_solution(sample, verbose=False) for sample in samples]
         novelties, nearest_lvls, nearest_lvl_sols = zip(*[dataset.is_novel(sample) for sample in samples])
-        accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
+        accuracies, infos = zip(*[dataset.is_accurate(sample, solution, args.eval_tolerance) for sample, solution in zip(samples, solutions)])
     
     else:
         # FIXME: This makes things much slower (at least with num_eval_proc=10 or so -- just multiproc overhead?)
         with get_context("spawn").Pool(args.num_eval_proc) as pool:
             get_solution = partial(dataset.get_solution, verbose=False)
             solutions = list(tqdm(pool.imap(get_solution, samples), total=len(samples), desc="Computing solutions"))
-            samples_sols = list(zip(samples, solutions))
+            samples_sols = list(zip(samples, solutions, [args.eval_tolerance] * len(samples)))
             accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate_multi, samples_sols), total=len(samples_sols), desc="Computing accuracies")))
             novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples), total=len(samples), desc="Computing novelties")))
     
     
     # Convert solutions to strings using the griddly action mapping
-    # solutions = [[] if sol is False else sol for sol in solutions]
-
     solutions = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in solutions]
     nearest_lvl_sols = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in nearest_lvl_sols]
 
@@ -197,6 +210,7 @@ def main(args: Config):
     model, _, global_step = load_train_state(output_dir)
 
     model_mapping = {"gpt2": "gpt2",
+                     "gpt2-untrained": "gpt2-untrained",
                      "codeparrot": "lvwerra/codeparrot",
                      "java-gpt2": "microsoft/CodeGPT-small-java-adaptedGPT2",
                      "incoder-1B": "facebook/incoder-1B",
@@ -204,9 +218,25 @@ def main(args: Config):
 
     # Instantiate the tokenizer based on the model's
     model_name = model_mapping[args.model]
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.add_special_tokens({"pad_token": "PAD",
-                                  "bos_token": "START"})
+
+    if args.model == "gpt2-untrained":
+        tokenizer_dir = os.path.join("./caches", "gpt2-custom-tokenizer", args.game)
+
+        # Load the custom tokenizer if it exists
+        if os.path.exists(os.path.join(tokenizer_dir, "vocab.json")) and os.path.exists(os.path.join(tokenizer_dir, "merges.txt")):
+            print(f"Loading tokenizer from cache at {tokenizer_dir}...")
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
+
+            tokenizer.add_special_tokens({"pad_token": "<pad>",
+                                          "bos_token": "<s>",
+                                          "eos_token": "</s>"})
+        else:
+            exit("No custom tokenizer found for gpt2-untrained. Please run train_lm.py first.")
+
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer.add_special_tokens({"pad_token": "PAD",
+                                    "bos_token": "START"})
 
     # Instantiate the dataset
     if args.game == "sokoban":

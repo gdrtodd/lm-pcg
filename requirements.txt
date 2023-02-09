@@ -1,9 +1,11 @@
 griddly
+jinja2
 levenshtein
 networkx
 pandas
 tables
 tensorboard
+# tensorflow # reading tensorboard files during cross-evaluation
 torch
 tqdm
 transformers

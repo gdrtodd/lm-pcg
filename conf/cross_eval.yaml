@@ -1,0 +1,4 @@
+defaults:
+  - eval
+  - cross_eval_config
+  - _self_
