@@ -284,6 +284,7 @@ def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTok
                  rotation_mode="anchor")
 
         ax.set_title(f"Controllability Confusion Matrix for {name}")
+        fig.tight_layout()
         plt.savefig(f"./results/{'+'.join(args.annotation_keys)}_controllability.png")
             
 
