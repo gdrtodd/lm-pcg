@@ -3,56 +3,49 @@ import pandas as pd
 import numpy as np
 from Levenshtein import distance
 
-from helpers import h5_to_df
+from helpers import training_levels
+from config import Config
 from sokoban_solvers import EnhancedAStarAgent, State
 import networkx as nx
 
+args = Config()
 
-def training_levels(path, is_h5=True):
-    """
-    Function to get training levels
-    """
-    if is_h5:
-        df = h5_to_df(path)
-    else:
-        df = pd.read_csv(path)
-    return list(df.level)
     
-def is_accurate(level_sol_len, target_len, tolerance=5):
+def is_accurate(level_sol_len, target_len):
     """
     Returns True if accurate and False otherwise.
     """
-    lower_tolerance = level_sol_len - tolerance
-    upper_tolerance = level_sol_len + tolerance
-    if lower_tolerance < target_len < upper_tolerance:
+    #lower_tolerance = level_sol_len - args.eval_tolerance
+    #upper_tolerance = level_sol_len + args.eval_tolerance
+    
+    if abs(float(target_len) - level_sol_len) > args.eval_tolerance:
+    #if lower_tolerance < target_len < upper_tolerance:
         return True
     return False
 
-def is_novel(level,dataset, novelty_threshold=5):
+def is_novel(level,source):
     """
     Function to calculate diversity
     """
-    if dataset == "boxoban":
-        train_path = "data_000.csv"
-        is_h5 = False
-    elif dataset == "microban":
-        train_path = "microban_flips_rotations_data.h5"
-        is_h5 = True
+    if args.experiment == "sampling":
+        if source == "boxoban":
+            train_path = "cache/data_000.csv"
+            is_h5 = False
+        elif source == "microban":
+            train_path = "cache/microban_flips_rotations_data.h5"
+            is_h5 = True
+    elif args.experiment == "controllability":
+        if source == "microban":
+            train_path = "cache/microban_flips_rotations_data.h5"
+            is_h5 = True
 
     train_levels = training_levels(train_path,is_h5=is_h5)
 
     for train_level in train_levels:
-        if distance(level, train_level) < novelty_threshold:
+        if distance(level, train_level) < args.novelty_threshold:
             return False
 
     return True
-
-'''df = pd.read_csv("exp_results/result_davinci_0.55-temp_1-top_p_simulations-100_exp-no_104003.csv")
-
-novel = []
-for level in df["level"]:
-    novel.append(is_novel(level))
-print(sum(novel)/100)'''
 
     
 

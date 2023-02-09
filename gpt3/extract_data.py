@@ -9,7 +9,6 @@ def extract_data(df, filename, experiment):
     data = []
     completions = list(df["level"])
     sol_len = list(df["solution_len"])
-    #print(completions)
     for i in range(0,df.shape[0]):
         if experiment == "sample":
             prompt = {"prompt": f"Map: ->", "completion": f" {completions[i]}. END"}
@@ -24,7 +23,7 @@ def extract_data(df, filename, experiment):
 
 def main():
     
-    file_path = "microban_data.h5"
+    file_path = "cache/microban_data.h5"
     df = h5_to_df(file_path)
     extract_data(df, "microban_control.jsonl", "control")
 
