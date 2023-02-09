@@ -437,7 +437,7 @@ class AnnotatedSokobanDataset(GameDataset):
 
         graph.add_edges_from(edges)
 
-        biggest_clique = -1
+        biggest_clique = 1
         num_cliques = 0
 
         for clique in nx.find_cliques(graph):
