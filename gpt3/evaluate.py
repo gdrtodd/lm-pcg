@@ -1,132 +1,14 @@
+from metrics import is_novel, is_playable, get_diversity
+
 import os
 import pandas as pd
-import numpy as np
-from Levenshtein import distance
-
-from helpers import h5_to_df
-from sokoban_solvers import EnhancedAStarAgent, State
-import networkx as nx
-
-from datasets import AnnotatedSokobanDataset
-
-
 import openai
 os.environ['OPENAI_API_KEY'] = "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"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
-TRAIN_PATH = "data_000.csv"
 
-def training_levels(path, is_h5=True):
-    """
-    Function to get training levels
-    """
-    if is_h5:
-        df = h5_to_df(path)
-    else:
-        df = pd.read_csv(path)
-    return list(df.level)
-    
-
-
-def is_novel(level, novelty_threshold=5):
-    """
-    Function to calculate diversity
-    """
-    train_levels = training_levels(TRAIN_PATH,is_h5=False)
-
-    for train_level in train_levels:
-        if distance(level, train_level) < novelty_threshold:
-            return False
-
-    return True
-    
-
-
-def is_playable(level, verbose=False):
-        '''
-        Determines whether the given level is playable by checking a variety of conditions:
-          1. the level is rectangular (i.e. every line is the same length)
-          2. the level contains only the following characters: "\n", "#", " ", "-", "@", "$", "."
-          3. the level contains exactly one player
-          4. the level contains the same number of boxes and goals (and at least one of each)
-          5. the level can be solved by an ASTAR agent
-        If the level is playable, return the solution (return False otherwise).
-        '''
-        solver = EnhancedAStarAgent()
-        # Check if the level is rectangular
-        line_lengths = [len(line) for line in level.split("\n")]
-        #print(set(line_lengths))
-        if len(set(line_lengths)) != 1:
-            if verbose: print("--Level is not rectangular--")
-            return False
-
-        # Check if the level contains only the allowed characters
-        allowed_chars = set("\n# -@$.*+")
-        if not set(level).issubset(allowed_chars):
-            if verbose: print("--Level contains invalid characters--")
-            return False
-
-        # Check if the level contains exactly one player
-        if level.count("@") != 1:
-            if verbose: print("--Level does not contain exactly one player--")
-            return False
-
-        # Check if the level contains the same number of boxes and goals
-        if level.count("$") != level.count(".") or level.count("$") == 0:
-            if verbose: print("--Level contains different numbers of boxes and goals--")
-            return False
-
-        # Check if the level can be solved by an ASTAR agent
-        level_state = State().stringInitialize(level.split("\n"))
-        solution, node, iters = solver.getSolution(level_state, maxIterations=1e7)
-        if not node.checkWin():
-            if verbose: print(f"--Level cannot be solved (... in {iters} steps)--")
-            return False
-        elif verbose:
-            print(f"++Level can be solved in {len(solution)} moves++")
-
-        return solution
-
-
-
-def get_diversity(levels, novelty_threshold, clique_limit=1000000):
-        '''
-        Returns the 'diversity' of a set of levels, defined as the size of the largest subset of levels
-        that are all at least 'novelty_threshold' edit distance away from each other. We compute this 
-        by constructing a graph where levels are adjacent if their edit distance is at least the threshold,
-        and then finding the size of the largest clique in the graph.
-        '''
-
-        graph = nx.Graph()
-        graph.add_nodes_from(range(len(levels)))
-
-        edges = []
-        for i in range(len(levels)):
-            for j in range(i+1, len(levels)):
-                if distance(levels[i], levels[j]) >= novelty_threshold:
-                    edges.append((i, j))
-
-        graph.add_edges_from(edges)
-
-        biggest_clique = -1
-        num_cliques = 0
-
-        for clique in nx.find_cliques(graph):
-            if len(clique) > biggest_clique:
-                biggest_clique = len(clique)
-            num_cliques += 1
-
-            if num_cliques > clique_limit:
-                break
-
-
-        return biggest_clique
-
-
-
-
-def infer_and_eval(model,simulations, model_name, exp_no):
+def infer(model,simulations, model_name, exp_no, dataset):
 
     """
     inference and evaluations
@@ -137,7 +19,7 @@ def infer_and_eval(model,simulations, model_name, exp_no):
     generations["is_novel"] = []
     generations["is_playable"] = []
 
-    temp = 0.55
+    temp = 0.5
     top_p = 1
     for sss in range(0, simulations):
 
@@ -153,7 +35,7 @@ def infer_and_eval(model,simulations, model_name, exp_no):
         level = gen["choices"][0]["text"][1:]
         print(level)
         generations["level"].append(level)
-        generations["is_novel"].append(is_novel(level))
+        generations["is_novel"].append(is_novel(level,dataset))
         generations["is_playable"].append(is_playable(level, verbose = True))
     
 
@@ -161,29 +43,57 @@ def infer_and_eval(model,simulations, model_name, exp_no):
     path = f"exp_results/result_{model_name}_{temp}-temp_{top_p}-top_p_simulations-{simulations}_exp-no_{exp_no}.csv"
     df.to_csv(path)
     
-    return eval(path,simulations)
+    #return eval(path,simulations)
+    #return eval_from_df(df,simulations)
+    return df
+
           
 
-def eval(path,simulations):
+def eval(path,simulations, df, is_dataframe=False):
 
     """
     evals only.
     """
+    if not is_dataframe:
+        df = pd.read_csv(path,index_col=0)
+    else:
+        pass
+    df['is_novel'] = df['is_novel'].astype(bool)
+    df['is_playable'] = df['is_playable'].astype(str)
 
-    df = pd.read_csv(path,index_col=0)
 
-    playability = df.loc[df.is_playable != 'False']# Playability
-    novelty = df.loc[df.is_novel != 'False']# novelty
+    playability = df.loc[df.is_playable != "False"]# Playability
+    novelty = df.loc[df.is_novel == True]# novelty
     diversity = get_diversity(df["level"],5) #Diversity
-    dpn = novelty.loc[novelty.is_playable != 'False'] # Diversity of set of playable and novel levels
+    dpn = novelty.loc[novelty.is_playable != "False"] # Diversity of set of playable and novel levels
     restricted_diversity =  get_diversity(list(dpn["level"]),5) #Diversity of novel and playable levels
-
+    print(restricted_diversity)
     prop_playable = playability.shape[0]/simulations
     diversity = diversity/simulations
     prop_novel = novelty.shape[0]/simulations
     restricted_diversity = restricted_diversity/simulations
 
     return df, prop_playable, diversity, prop_novel, restricted_diversity
+
+def eval_from_df(df,simulation,dataset):
+
+    generations = {}
+    generations["level"] = []
+    generations["is_novel"] = []
+    generations["is_playable"] = []
+
+    for level in list(df["level"]):
+
+        generations["level"].append(level)
+        generations["is_novel"].append(is_novel(level,dataset))
+    #generations["is_playable"].append(is_playable(level, verbose = True))
+    generations["is_playable"] = list(df["is_playable"])
+
+
+    df_g = pd.DataFrame(generations)
+
+    return eval(path=" ",simulations=simulation, df = df_g, is_dataframe = True)
+
 
 
 
@@ -213,6 +123,17 @@ model_4 = {
     "5_epochs" : "curie:ft-gameinnovationlab:microban-sample-5-5epochs-2023-02-06-10-54-34"
 }
 
+# MICROBAN FLIPS
+model_9 = {
+    "10_epochs" : "davinci:ft-gameinnovationlab:microbanflips-level-sample-1-10epochs-2023-02-08-18-19-15"
+}
+
+# Microban  Flips Rotations
+
+model_10 = {
+    "10_epochs" : "davinci:ft-gameinnovationlab:microbanfp-level-sample-1-10epochs-2023-02-08-22-54-11"
+}
+
 
 ### 600Level Boxoban
 
@@ -234,15 +155,24 @@ model_7 = {
 ### 4000Level Boxoban
 
 model_8 = {
-    "1_epochs" : "davinci:ft-gameinnovationlab:4000level-sample-1-1epochs-2023-02-07-15-03-24"
+    "1_epochs" : "davinci:ft-gameinnovationlab:4000level-sample-1-1epochs-2023-02-07-15-03-24",
+    "3_epochs" : "davinci:ft-gameinnovationlab:4000level-sample-1-3epochs-2023-02-07-17-21-04",
 }
 model_name = "davinci"
 
-exp_no = 104003
+exp_no = 400002
 
 simulations = 100
 
-df, playability, diversity, novelty, restricted_diversity = infer_and_eval(model_6["10_epochs"],simulations,model_name,exp_no)
-#df, playability, diversity, novelty, restricted_diversity = eval("exp_results/result_davinci_0.55-temp_1-top_p_simulations-100_exp-no_104002.csv",simulations)
+eval_only = True
+
+dataset = "microban"
+
+if eval_only:
+    df = pd.read_csv("exp_results/result_davinci_0.5-temp_1-top_p_simulations-100_exp-no_400002.csv",index_col=0)
+else:
+    df = infer(model_10["10_epochs"],simulations,model_name,exp_no,dataset)
+
+df, playability, diversity, novelty, restricted_diversity = eval_from_df(df,simulations,dataset)
 
 print(f'Playability:{playability}, diversity: {diversity}, Novelty: {novelty}, Restricted Diversity: {restricted_diversity}')    

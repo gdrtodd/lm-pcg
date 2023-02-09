@@ -10,7 +10,7 @@ def extract_data(series, filename):
     completions = list(series)
     #print(completions)
     for i in series:
-        prompt = {"prompt": f"Map. ->", "completion": f" {i}. END"}
+        prompt = {"prompt": f"Map: ->", "completion": f" {i}. END"}
         data.append(prompt)
     with open(filename, "w") as f:
         for item in data:
