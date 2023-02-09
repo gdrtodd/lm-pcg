@@ -127,7 +127,8 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
 
                 if global_step%args.eval_freq == 0:
                     print(f"\nGenerating samples for evaluation at step {global_step}...")
-                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset, args, num_proc=args.num_eval_proc)
+                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset, args, 
+                        num_steps_trained=global_step, num_proc=args.num_eval_proc)
 
                     print("Proportion of accurate levels:", prop_accurate)
                     print("Proportion of playable levels:", prop_playable)
@@ -279,6 +280,7 @@ def main(args: Config):
                 optimizer.load_state_dict(optimizer_state_dict)
                 print("Loaded checkpoint from step", global_step)
             except CheckpointNotFoundError as e:
+                global_step = 0
                 print(f"Failed to load checkpoint from {output_dir}, with error: {e}. Removing directory and starting from scratch.")
                 shutil.rmtree(output_dir, ignore_errors=True)
 

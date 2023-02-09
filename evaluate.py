@@ -19,7 +19,7 @@ from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name
 
 
 def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
-             verbose=False, render_dir=None, num_proc=1):
+             num_steps_trained: int, verbose=False, render_dir=None, num_proc=1):
 
     # Map the model to the available device
     model.to(device)
@@ -152,6 +152,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
     # Save stats to json
     stats = {
+        "num_steps_trained": num_steps_trained,
         "novelty_threshold": dataset.novelty_threshold,
         "prop_accurate": prop_accurate,
         "prop_playable": prop_playable,
@@ -262,7 +263,8 @@ def main(args: Config):
     if args.render:
         render_dir = os.path.join(output_dir, 'renders')
 
-    evaluate(model, device, tokenizer, dataset, args, verbose=True, render_dir=render_dir, num_proc=args.num_eval_proc)
+    evaluate(model, device, tokenizer, dataset, args, verbose=True, num_steps_trained=global_step, 
+             render_dir=render_dir, num_proc=args.num_eval_proc)
 
     # SIGSEGV ?? ... griddly?
 

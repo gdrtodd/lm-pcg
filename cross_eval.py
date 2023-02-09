@@ -109,12 +109,12 @@ def main(config: CrossEvalConfig):
     # Report training progress
     if config.report_progress:
         report_progress(sweep_configs, train_sweep_params.keys())
-        # return
+        return
 
     # Create a dataframe that holds the results of each evaluation
     main_dataframe = []
  
-
+    filtered_configs = []
     for config in sweep_configs:
         run_dir = os.path.join("./logs", get_run_name(config))
         eval_json_filename = f"temp-{config.gen_temp}_topk-{config.gen_top_k}_topp-{config.gen_top_p}_typicalp-{config.gen_typical_p}_beams-{config.gen_beams}_threshold-{config.novelty_threshold}.json"
@@ -125,11 +125,12 @@ def main(config: CrossEvalConfig):
             print(f"Issue loading JSON: {error}")
             continue
 
-        eval_dict = {"model": config.model,
-                     "source": config.source,
-                     "sample_prop": config.sample_prop,
-                     "annotation_keys": config.annotation_keys,
-                     "seed": config.seed,
+        eval_dict = {
+                    #  "model": config.model,
+                    #  "source": config.source,
+                    #  "sample_prop": config.sample_prop,
+                    #  "annotation_keys": config.annotation_keys,
+                    #  "seed": config.seed,
                      "gen_temp": config.gen_temp,
                      "gen_top_p": config.gen_top_p,
                      "gen_beams": config.gen_beams,
@@ -141,13 +142,26 @@ def main(config: CrossEvalConfig):
                      "diversity": eval_data["diversity"],
                      "restricted_diversity": eval_data["restricted_diversity"]
                     }
+        filtered_configs.append(config)
 
         main_dataframe.append(eval_dict)
+    sweep_configs = filtered_configs
 
     if len(main_dataframe) == 0:
         raise ValueError("No valid evaluation results found.")
 
-    main_dataframe = pd.DataFrame(main_dataframe)
+    # Row indices will consist of training hyperparameters
+    row_index_names = list(train_sweep_params.keys())
+    row_tuples = [tuple([cfg[param] for param in row_index_names]) for cfg in sweep_configs]
+    
+    # Turn Iterables into strings. Remove any underscores.
+    row_tuples = [tuple([', '.join(cfg[param]) if isinstance(cfg[param], Iterable) else cfg[param] for param in row_index_names]) for cfg in sweep_configs]
+    row_tuples = [tuple([v.replace("_", " ") if isinstance(v, str) else v for v in tpl]) for tpl in row_tuples]
+
+    row_indices = pd.MultiIndex.from_tuples(row_tuples, names=row_index_names)
+
+
+    main_dataframe = pd.DataFrame(main_dataframe, index=row_indices)
     main_dataframe.to_html("./results/main_dataframe.html")
 
     # First, we group by the swept hyperparameters except the seed and take the average. This gives us the average evaluation scores across
@@ -159,33 +173,52 @@ def main(config: CrossEvalConfig):
     # Group by the remaining non-evaluation hyperparameters and take the max with respect to prop_novel_playable_accurate
     [hyperparams.remove(param) for param in ["gen_temp", "gen_top_p", "gen_beams"] if param in hyperparams]
     max_over_eval_hyperparams = average_over_seeds.groupby(hyperparams)
-    max_over_eval_hyperparams = max_over_eval_hyperparams.apply(lambda x: x.loc[x.restricted_diversity.idxmax()]).reset_index(drop=True)
+    max_over_eval_hyperparams = max_over_eval_hyperparams.apply(lambda x: x.loc[x.restricted_diversity.idxmax()])
 
     # For display purposes, restrict to just model, novelty, playability, accuracy, all three, and diversity
-    to_display = max_over_eval_hyperparams[["model", "prop_novel", "prop_playable", "prop_accurate", "restricted_diversity"]]
+    to_display = max_over_eval_hyperparams[["prop_novel", "prop_playable", "prop_accurate", "restricted_diversity"]]
 
-    # Rename the columns to be more readable and save to LaTeX, bolding the highest value in each column
-    to_display = to_display.rename(columns={"model": "Model",
+
+    # Rename the columns to be more readable and save to LaTeX
+    to_display = to_display.rename(columns={
                                             "prop_novel": "Novelty",
                                             "prop_playable": "Playability",
                                             "prop_accurate": "Accuracy",
-                                            "restricted_diversity": "Score"})
-    to_display = to_display.round(3)
+                                            "restricted_diversity": "Score"},
+                                    index={'model': 'Model',
+                                           'annotation_keys': 'Annotation Keys'},
+                                    )
+
+    to_display.index.names = [v.replace("_", " ") for v in to_display.index.names]
+
+    # Bold the max values
+    to_display = to_display.style.apply(highlight_max, axis=0)
+
+    # Round to 3 decimal places
+    to_display = to_display.format("{:.3f}")
 
     # Also separately record the eval hyperparameters
-    best_eval_hyperparams = max_over_eval_hyperparams[["model", "gen_temp", "gen_top_p", "gen_beams"]]
+    best_eval_hyperparams = max_over_eval_hyperparams[["gen_temp", "gen_top_p", "gen_beams"]]
 
     # Set up the save directory
     save_dir = os.path.join("./results", exp_name)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    to_display = to_display.style.hide(axis='index')
+    # to_display = to_display.style.hide(axis='index')
     to_display = to_display.to_latex(os.path.join(save_dir, "eval_sweep_table.tex"))
 
     best_eval_hyperparams.to_csv(os.path.join(save_dir, "eval_hyperparams.csv"))
 
     print("Done!")
+
+
+def highlight_max(s):
+    '''
+    Bold the maximum in a series
+    '''
+    is_max = s == s.max()
+    return ['font-weight: bold' if v else '' for v in is_max]
 
 
 
