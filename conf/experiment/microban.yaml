@@ -2,8 +2,10 @@
 hydra:
   sweeper:
     params:
-      seed: range(0, 5)
-      model: gpt2
+      # seed: range(0, 5)
+      # seed: range(5, 10)
+      seed: range(0, 10)
       source: microban, microban_flips, microban_flips_rotations
 
-exp_name: pretraining
+model: gpt2
+exp_name: microban

@@ -27,11 +27,11 @@ python evaluate.py +experiment=models
 ```
 Add `render=True` to save images and gifs of generated levels and their nearest neighbor in the training set (measured by hamming distance).
 
+## Cross-evaluation
 To run a cross-evaluation (aggregating the results from evaluations above to compare the effect of different hyperparameters), run:
 ```
-python cross_eval.py +experiment=models -m
+python cross_eval.py experiment=models
 ```
-(the multirun flag is required to aggregate results from multiple runs -- cross evaluation will run in a single process, locally)
 
 
 ## Datasets

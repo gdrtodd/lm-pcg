@@ -1,9 +1,4 @@
 defaults:
-
-  # Inherit one. If we inherit from config, we revert to default eval parameters
-  # - config
   - eval
-
   - cross_eval_config
   - _self_
-  - override hydra/launcher: cross-eval

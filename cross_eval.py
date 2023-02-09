@@ -1,3 +1,4 @@
+import copy
 import glob
 import json
 import os
@@ -5,14 +6,26 @@ from typing import Dict, Iterable, List, Any, Sequence
 
 import hydra
 import pandas as pd
+import yaml
 
 from conf.config import Config, CrossEvalConfig, EvalConfig
 from utils import filter_configs, get_run_name, is_valid_config
 
 
 def report_progress(sweep_configs: List[Config], hyperparams: Iterable):
-    # Check whether we have a checkpoint trained to the target number of steps for each experiment.
+    """ Check whether we have a checkpoint trained to the target number of steps for each experiment."""
+
+    # Which sets of hyperparameters have we already checked for?
+    param_tpls_checked = set()
+
     for cfg in sweep_configs:
+
+        # Skip this experiment if we've already encountered an equivalent one according to `hyperparams`
+        param_tpl = tuple([cfg[k] for k in hyperparams])
+        if param_tpl in param_tpls_checked:
+            continue
+        param_tpls_checked.add(param_tpl)
+
         run_dir = os.path.join("./logs", get_run_name(cfg))
         ckpt_file = os.path.join(run_dir, f"checkpoint-{cfg.num_train_steps}")
         if not os.path.exists(run_dir):
@@ -30,20 +43,34 @@ def report_progress(sweep_configs: List[Config], hyperparams: Iterable):
             print(f"Checkpoint not found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])}. Saved checkpoints: {ckpt_files}")
 
 
-# Call this only to initiate the hydra multirun launcher (which calls cross_eval()). This function is never entered.
-# At runtime, the cross_eval config inherits from eval.yaml, so it knows what hyperparameters we have swept over
+def process_hyperparam_str(hp_str: str) -> tuple:
+    try:
+        return list(eval(hp_str))
+    except:
+        return [i.strip() for i in hp_str.split(',')]
+
+
 @hydra.main(version_base=None, config_path="conf", config_name="cross_eval")
-def dummy_cross_eval(cfg): pass 
+def main(config: CrossEvalConfig):
+    # Load up eval hyperparameters from conf/eval.yaml
+    eval_sweep_params = yaml.load(open("conf/eval.yaml", "r"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
+    train_sweep_params = yaml.load(open(f"conf/experiment/{config.experiment}.yaml"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
+    eval_sweep_params = {k: process_hyperparam_str(v) for k, v in eval_sweep_params.items()}
+    train_sweep_params = {k: process_hyperparam_str(v) for k, v in train_sweep_params.items()}
+    sweep_params = {**train_sweep_params, **eval_sweep_params}
 
+    # Manually create per-experiment configs.
+    sweep_configs = [copy.deepcopy(config)]
+    for param_k, param_v_lst in sweep_params.items():
+        new_sweep_configs = []
 
-def cross_evaluate(config: CrossEvalConfig, sweep_configs: List[Config], sweep_params: Dict[str, str]):
-    """Collect results generated when evaluating trained models under different conditions.
-
-    Args:
-        config (CrossEvalConfig): The cross-evaluation config
-        sweep_configs (List[EvalConfig]): EvalConfigs corresponding to evaluations
-        sweep_params (Dict[str, str]): The eval/train hyperparameters being swept over in the cross-evaluation
-    """
+        # Take product of existing configs with new hyperparameter values
+        for param_v in param_v_lst:
+            for old_cfg in sweep_configs:
+                new_cfg = copy.deepcopy(old_cfg)
+                new_cfg[param_k] = param_v
+                new_sweep_configs.append(new_cfg) 
+        sweep_configs = new_sweep_configs
 
     # Filter out any invalid configs.
     sweep_configs = filter_configs(sweep_configs)
@@ -78,7 +105,8 @@ def cross_evaluate(config: CrossEvalConfig, sweep_configs: List[Config], sweep_p
 
     # Report training progress
     if config.report_progress:
-        report_progress(sweep_configs, sweep_params.keys())
+        report_progress(sweep_configs, train_sweep_params.keys())
+        return
 
     # Create a dataframe that holds the results of each evaluation
     main_dataframe = []
@@ -95,6 +123,7 @@ def cross_evaluate(config: CrossEvalConfig, sweep_configs: List[Config], sweep_p
             continue
 
         eval_dict = {"model": config.model,
+                     "source": config.source,
                      "sample_prop": config.sample_prop,
                      "annotation_keys": config.annotation_keys,
                      "seed": config.seed,
@@ -107,9 +136,13 @@ def cross_evaluate(config: CrossEvalConfig, sweep_configs: List[Config], sweep_p
                      "prop_accurate": eval_data["prop_accurate"],
                      "prop_novel_playable_accurate": eval_data["prop_novel_playable_accurate"],
                      "diversity": eval_data["diversity"],
-                     "restricted_diversity": eval_data["restricted_diversity"]}
+                     "restricted_diversity": eval_data["restricted_diversity"]
+                    }
 
         main_dataframe.append(eval_dict)
+
+    if len(main_dataframe) == 0:
+        raise ValueError("No valid evaluation results found.")
 
     main_dataframe = pd.DataFrame(main_dataframe)
     main_dataframe.to_html("./results/main_dataframe.html")
@@ -155,5 +188,4 @@ def cross_evaluate(config: CrossEvalConfig, sweep_configs: List[Config], sweep_p
 
 # Run `python cross_eval.py +experiment=EXP_NAME -m`
 if __name__ == "__main__":
-    # Call `cross_eval` but initiate hydra multirun launcher first
-    dummy_cross_eval()
+    main()
