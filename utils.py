@@ -13,6 +13,9 @@ from conf.config import Config
 
 from sokoban_solvers import EnhancedAStarAgent, State
 
+class CheckpointNotFoundError(FileNotFoundError):
+    pass
+
 def get_run_name(args: Config):
     run_name = os.path.join(
         args.game,
@@ -67,7 +70,7 @@ def load_train_state(output_dir):
     prior_checkpoint_paths = sorted(prior_checkpoint_paths, key=lambda x: int(x.split("-")[-1]))
     
     if len(prior_checkpoint_paths) == 0:
-        raise FileNotFoundError(f"No checkpoints found at {output_dir}. Exiting.")
+        raise CheckpointNotFoundError(f"No checkpoints found at {output_dir}. Exiting.")
 
     output_dir = prior_checkpoint_paths[-1]
 

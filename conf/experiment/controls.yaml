@@ -4,6 +4,6 @@ hydra:
     params:
 
       seed: range(0, 5)
-      annotation_keys: "[solution_len], [emptiness], [emptiness, solution_len]"
+      annotation_keys: "[solution_len], [prop_empty], [prop_empty, solution_len]"
 
 exp_name: controllability

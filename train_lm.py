@@ -16,7 +16,7 @@ from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
 
 from datasets import GameDataset, AnnotatedSokobanDataset, LMazeLMDataset
 from evaluate import evaluate
-from utils import get_run_name, save_train_state, load_train_state
+from utils import CheckpointNotFoundError, get_run_name, save_train_state, load_train_state
 
 def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -276,14 +276,14 @@ def main(args: Config):
         if args.overwrite:
             shutil.rmtree(output_dir, ignore_errors=True)
         
-        # elif os.path.exists(output_dir):
-        #     try:
-        model, optimizer_state_dict, global_step = load_train_state(output_dir)
-        optimizer.load_state_dict(optimizer_state_dict)
-        print("Loaded checkpoint from step", global_step)
-        #     except FileNotFoundError:
-        #         print(f"No checkpoint not found in {output_dir}. Removing directory and starting from scratch.")
-        #         shutil.rmtree(output_dir, ignore_errors=True)
+        elif os.path.exists(output_dir):
+            try:
+                model, optimizer_state_dict, global_step = load_train_state(output_dir)
+                optimizer.load_state_dict(optimizer_state_dict)
+                print("Loaded checkpoint from step", global_step)
+            except CheckpointNotFoundError:
+                print(f"No checkpoint not found in {output_dir}. Removing directory and starting from scratch.")
+                shutil.rmtree(output_dir, ignore_errors=True)
 
         # Create output directory if it doesn't exist
         if not os.path.exists(output_dir):
