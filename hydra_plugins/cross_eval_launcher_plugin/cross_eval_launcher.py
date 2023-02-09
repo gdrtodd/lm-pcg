@@ -50,6 +50,7 @@ ConfigStore.instance().store(
 )
 
 
+# TODO: We can replicate this without a plugin?
 class CrossEvalLauncher(BaseSubmititLauncher):
     def launch(
         self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int
@@ -58,27 +59,27 @@ class CrossEvalLauncher(BaseSubmititLauncher):
         assert self.hydra_context is not None
         assert self.config is not None
         assert self.task_function is not None
-        configure_log(self.config.hydra.hydra_logging, self.config.hydra.verbose)
-        sweep_dir = self.config.hydra.sweep.dir
-        Path(str(sweep_dir)).mkdir(parents=True, exist_ok=True)
+        # configure_log(self.config.hydra.hydra_logging, self.config.hydra.verbose)
+        # sweep_dir = self.config.hydra.sweep.dir
+        # Path(str(sweep_dir)).mkdir(parents=True, exist_ok=True)
         # log.info(f"Cross-evaluating {len(job_overrides)} jobs locally")
         sweep_configs = []
         for idx, overrides in enumerate(job_overrides):
-            idx = initial_job_idx + idx
-            lst = " ".join(filter_overrides(overrides))
+            # idx = initial_job_idx + idx
+            # lst = " ".join(filter_overrides(overrides))
             # log.info(f"\t#{idx} : {lst}")
             sweep_config = self.hydra_context.config_loader.load_sweep_config(
                 self.config, list(overrides)
             )
-            with open_dict(sweep_config):
-                sweep_config.hydra.job.id = idx
-                sweep_config.hydra.job.num = idx
+            # with open_dict(sweep_config):
+            #     sweep_config.hydra.job.id = idx
+            #     sweep_config.hydra.job.num = idx
             sweep_configs.append(sweep_config)
 
         sweep_params = self.config.hydra.sweeper.params
 
         from cross_eval import cross_evaluate
-        cross_evaluate(sweep_configs, sweep_params)
+        cross_evaluate(self.config, sweep_configs, sweep_params)
 
         # Avoid unhappy hydra
         sys.exit()

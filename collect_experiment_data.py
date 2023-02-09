@@ -3,40 +3,40 @@ import matplotlib.pyplot as plt
 from matplotlib.scale import LogScale
 import numpy as np
 import os
-from tensorflow.python.summary.summary_iterator import summary_iterator
+# from tensorflow.python.summary.summary_iterator import summary_iterator
 from tqdm import tqdm
 
 from utils import get_run_name
 
-def collect_loss_curves(run_dirs):
-    '''
-    For each of the runs in the specified directories, collect a list of the train loss at each recorded step,
-    and return them as a list of lists
-    '''
+# def collect_loss_curves(run_dirs):
+#     '''
+#     For each of the runs in the specified directories, collect a list of the train loss at each recorded step,
+#     and return them as a list of lists
+#     '''
 
-    loss_curves = []
+#     loss_curves = []
 
-    for run_dir in run_dirs:
-        if os.path.exists(run_dir) and any([file.startswith("events.out") for file in os.listdir(run_dir)]):
+#     for run_dir in run_dirs:
+#         if os.path.exists(run_dir) and any([file.startswith("events.out") for file in os.listdir(run_dir)]):
 
-            # Determine how many total logged steps there are by finding the events file the largest step
-            total_steps = max([max([e.step for e in summary_iterator(os.path.join(run_dir, file))]) for file in 
-                                    os.listdir(run_dir) if file.startswith("events.out")])
+#             # Determine how many total logged steps there are by finding the events file the largest step
+#             total_steps = max([max([e.step for e in summary_iterator(os.path.join(run_dir, file))]) for file in 
+#                                     os.listdir(run_dir) if file.startswith("events.out")])
 
-            # Initialize the loss curve
-            loss_curve = np.zeros(total_steps)
+#             # Initialize the loss curve
+#             loss_curve = np.zeros(total_steps)
 
-            for file in [file for file in os.listdir(run_dir) if file.startswith("events.out")]:
-                for event in summary_iterator(os.path.join(run_dir, file)):
-                    if len(event.summary.value) > 0 and event.summary.value[0].tag == "train/loss":
-                        loss_curve[event.step-1] = event.summary.value[0].simple_value
+#             for file in [file for file in os.listdir(run_dir) if file.startswith("events.out")]:
+#                 for event in summary_iterator(os.path.join(run_dir, file)):
+#                     if len(event.summary.value) > 0 and event.summary.value[0].tag == "train/loss":
+#                         loss_curve[event.step-1] = event.summary.value[0].simple_value
 
-            # Count the number of unfilled positions
-            print(f"{run_dir.split('/')[-1]}: {np.sum(loss_curve == 0)} / {total_steps} unfilled loss curve positions")
+#             # Count the number of unfilled positions
+#             print(f"{run_dir.split('/')[-1]}: {np.sum(loss_curve == 0)} / {total_steps} unfilled loss curve positions")
 
-        loss_curves.append(loss_curve)
+#         loss_curves.append(loss_curve)
 
-    return loss_curves
+#     return loss_curves
 
             
 

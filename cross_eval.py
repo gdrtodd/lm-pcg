@@ -1,24 +1,16 @@
 import glob
 import json
 import os
-from pathlib import Path
 from typing import Dict, Iterable, List, Any, Sequence
 
 import hydra
-from hydra.core.utils import JobReturn
-import numpy as np
-from omegaconf import OmegaConf
 import pandas as pd
-from hydra.core.plugins import Plugins
-from hydra.plugins.plugin import Plugin
-from matplotlib import pyplot as plt
 
-from collect_experiment_data import collect_loss_curves
-from conf.config import Config
-from utils import get_run_name
+from conf.config import Config, CrossEvalConfig, EvalConfig
+from utils import filter_configs, get_run_name, is_valid_config
 
 
-def collect_checkpoints(sweep_configs: List[Config], hyperparams):
+def report_progress(sweep_configs: List[Config], hyperparams: Iterable):
     # Check whether we have a checkpoint trained to the target number of steps for each experiment.
     for cfg in sweep_configs:
         run_dir = os.path.join("./logs", get_run_name(cfg))
@@ -42,9 +34,17 @@ def collect_checkpoints(sweep_configs: List[Config], hyperparams):
 def dummy_cross_eval(cfg): pass 
 
 
-def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
-    # TODO: Could be nice to also receive the hyperparams swept over, as lists. Can tinker with `cross_eval_launcher.py`
-    #   to pass this forward, or just iterate through sweep_configs and collect hyperparams of interest manually.
+def cross_evaluate(config: CrossEvalConfig, sweep_configs: List[Config], sweep_params: Dict[str, str]):
+    """Collect results generated when evaluating trained models under different conditions.
+
+    Args:
+        config (CrossEvalConfig): The cross-evaluation config
+        sweep_configs (List[EvalConfig]): EvalConfigs corresponding to evaluations
+        sweep_params (Dict[str, str]): The eval/train hyperparameters being swept over in the cross-evaluation
+    """
+
+    # Filter out any invalid configs.
+    sweep_configs = filter_configs(sweep_configs)
 
     cfg_0 = sweep_configs[0]
 
@@ -68,11 +68,15 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     _cfgs_sortable = [tuple([cfg[k] for k in hyperparams]) for cfg in sweep_configs]
     
     # Convert iterables to strings for sorting
-    _cfgs_sortable = [[''.join(cfg[k]) if isinstance(cfg[k], Iterable) else cfg[k] for k in hyperparams] for cfg in sweep_configs]
+    _cfgs_sortable = [[''.join(str(cfg[k])) if isinstance(cfg[k], Iterable) else cfg[k] for k in hyperparams] for cfg in sweep_configs]
     _cfg_sort_idxs = sorted(range(len(_cfgs_sortable)), key=lambda k: _cfgs_sortable[k])
 
     # List of configurations sorted by the order of the hyperparameters
     sweep_configs = [sweep_configs[i] for i in _cfg_sort_idxs]
+
+    # Report training progress
+    if config.report_progress:
+        report_progress(sweep_configs, sweep_params.keys())
 
     # Create a dataframe that holds the results of each evaluation
     main_dataframe = []
@@ -115,7 +119,7 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     average_over_seeds.to_html("./results/new_df.html")
 
     # Group by the remaining non-evaluation hyperparameters and take the max with respect to prop_novel_playable_accurate
-    [hyperparams.remove(param) for param in ["gen_temp", "gen_top_p", "gen_beams"]]
+    [hyperparams.remove(param) for param in ["gen_temp", "gen_top_p", "gen_beams"] if param in hyperparams]
     max_over_eval_hyperparams = average_over_seeds.groupby(hyperparams)
     max_over_eval_hyperparams = max_over_eval_hyperparams.apply(lambda x: x.loc[x.restricted_diversity.idxmax()]).reset_index(drop=True)
 
@@ -131,22 +135,23 @@ def cross_evaluate(sweep_configs: List[Config], sweep_params: Dict[str, str]):
     to_display = to_display.round(3)
 
     # Also separately record the eval hyperparameters
-    eval_hyperparams = max_over_eval_hyperparams[["model", "gen_temp", "gen_top_p", "gen_beams"]]
+    best_eval_hyperparams = max_over_eval_hyperparams[["model", "gen_temp", "gen_top_p", "gen_beams"]]
 
     # Set up the save directory
     save_dir = os.path.join("./results", exp_name)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    to_display = to_display.style.to_latex(os.path.join(save_dir, "eval_sweep_table.tex"),
-                                           index=False, escape=False, bold_rows=True, 
-                                           column_format="lrrrr")
+    to_display = to_display.style.hide(axis='index')
+    to_display = to_display.to_latex(os.path.join(save_dir, "eval_sweep_table.tex"))
 
-    eval_hyperparams.to_csv(os.path.join(save_dir, "eval_hyperparams.csv"))
+    best_eval_hyperparams.to_csv(os.path.join(save_dir, "eval_hyperparams.csv"))
 
     print("Done!")
 
 
 
+# Run `python cross_eval.py +experiment=EXP_NAME -m`
 if __name__ == "__main__":
+    # Call `cross_eval` but initiate hydra multirun launcher first
     dummy_cross_eval()

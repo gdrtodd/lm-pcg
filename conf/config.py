@@ -3,7 +3,6 @@ import typing
 
 from hydra.core.config_store import ConfigStore
 
-
 @dataclass
 class Config:
     """This class provides a "schema" for the config file, validating types."""
@@ -51,6 +50,18 @@ class Config:
     sample_contexts: bool = False
     sample_sequential: bool = False
 
+@dataclass
+class EvalConfig(Config):
+    eval_tolerance: int = 5
+    num_eval_proc: int = 10  # For computing solutions in parallel
+    render: bool = False
+
+@dataclass
+class CrossEvalConfig(EvalConfig):
+    report_progress: bool = False
+
 
 cs = ConfigStore.instance()
 cs.store(name="base_config", node=Config)
+cs.store(name="eval_config", node=EvalConfig)
+cs.store(name="cross_eval_config", node=CrossEvalConfig)

@@ -1,6 +1,7 @@
 import hashlib
 from itertools import groupby
 import os
+from typing import List
 import numpy as np
 import shutil
 
@@ -26,6 +27,21 @@ def get_run_name(args: Config):
         f"seed-{args.seed}",
     )
     return run_name
+
+def filter_configs(cfgs: List[Config]):
+    new_cfgs = []
+    for cfg in cfgs:
+        if is_valid_config(cfg):
+            new_cfgs.append(cfg)
+    return new_cfgs
+
+def is_valid_config(cfg: Config) -> bool:
+    """ When manually sweeping over hyperparams, identify combinations."""
+    if cfg.holdout_solution_lens is not None and cfg.annotation_keys is None:
+        # Cannot hold out prompts when model is not trained to match prompts (?)
+        return False
+    return True
+
 
 def save_train_state(model, optimizer, global_step, output_dir):
     # Get paths of any previous checkpoints

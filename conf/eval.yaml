@@ -1,17 +1,10 @@
 defaults:
   - config
+  - eval_config
   - _self_
 
-  # - override hydra/launcher: submitit_local
-  - override hydra/launcher: submitit_slurm
-
-
-render: false
-num_eval_proc: 10  # For computing solutions in parallel
-eval_tolerance: null
 
 hydra:
-  # Eval sweep hyperparameters
   sweeper:
     params:
       gen_temp: 1, 2, 3, 4
