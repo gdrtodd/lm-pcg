@@ -272,8 +272,11 @@ def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTok
         fig, ax = plt.subplots()
         im = ax.imshow(confusion_matrix)
 
-        x_labels = [f"{target-(width/2)+1}-{target+(width/2)}" for target in targets]
-        y_labels = [f"{target-(width/2)+1}-{target+(width/2)}" for target in reversed(targets)] + ["Unplayable"]
+        if args.annotation_keys == ["solution_len"]:
+            limits = [(int(target-(width/2)+1), int(target+(width/2))) for target in targets]
+
+        x_labels = [f"{lower}-{upper}" for lower, upper in limits]
+        y_labels = [f"{lower}-{upper}" for lower, upper in reversed(limits)] + ["Unplayable"]
 
         # Show ticks
         ax.set_xticks(np.arange(len(x_labels)), labels=x_labels)
@@ -284,6 +287,9 @@ def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTok
                  rotation_mode="anchor")
 
         ax.set_title(f"Controllability Confusion Matrix for {name}")
+        ax.set_xlabel(f"Target {name}")
+        ax.set_ylabel(f"Actual {name}")
+
         fig.tight_layout()
         plt.savefig(f"./results/{'+'.join(args.annotation_keys)}_controllability.png")
             
