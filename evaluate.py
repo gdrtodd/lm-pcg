@@ -77,21 +77,19 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         if verbose: print("Computing solutions...")
         solutions = [dataset.get_solution(sample, verbose=False) for sample in samples]
         novelties, nearest_lvls, nearest_lvl_sols = zip(*[dataset.is_novel(sample) for sample in samples])
-        accuracies, infos = zip(*[dataset.is_accurate(sample, solution) for sample, solution in zip(samples, solutions)])
+        accuracies, infos = zip(*[dataset.is_accurate(sample, solution, args.eval_tolerance) for sample, solution in zip(samples, solutions)])
     
     else:
         # FIXME: This makes things much slower (at least with num_eval_proc=10 or so -- just multiproc overhead?)
         with get_context("spawn").Pool(args.num_eval_proc) as pool:
             get_solution = partial(dataset.get_solution, verbose=False)
             solutions = list(tqdm(pool.imap(get_solution, samples), total=len(samples), desc="Computing solutions"))
-            samples_sols = list(zip(samples, solutions))
+            samples_sols = list(zip(samples, solutions, [args.eval_tolerance] * len(samples)))
             accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate_multi, samples_sols), total=len(samples_sols), desc="Computing accuracies")))
             novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples), total=len(samples), desc="Computing novelties")))
     
     
     # Convert solutions to strings using the griddly action mapping
-    # solutions = [[] if sol is False else sol for sol in solutions]
-
     solutions = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in solutions]
     nearest_lvl_sols = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in nearest_lvl_sols]
 

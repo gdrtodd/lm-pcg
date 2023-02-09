@@ -8,7 +8,7 @@ defaults:
 
 render: false
 num_eval_proc: 10  # For computing solutions in parallel
-
+eval_tolerance: null
 
 hydra:
   # Eval sweep hyperparameters
