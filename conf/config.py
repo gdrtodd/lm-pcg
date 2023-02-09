@@ -58,7 +58,7 @@ class EvalConfig(Config):
 
 @dataclass
 class CrossEvalConfig(EvalConfig):
-    report_progress: bool = False
+    report_progress: bool = True
 
 
 cs = ConfigStore.instance()

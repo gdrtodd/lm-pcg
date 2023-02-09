@@ -18,7 +18,7 @@ from datasets import GameDataset, AnnotatedSokobanDataset, LMazeLMDataset
 from evaluate import evaluate
 from utils import CheckpointNotFoundError, get_run_name, save_train_state, load_train_state
 
-def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args):
+def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args: Config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Map the model to the available device
@@ -281,8 +281,8 @@ def main(args: Config):
                 model, optimizer_state_dict, global_step = load_train_state(output_dir)
                 optimizer.load_state_dict(optimizer_state_dict)
                 print("Loaded checkpoint from step", global_step)
-            except CheckpointNotFoundError:
-                print(f"No checkpoint not found in {output_dir}. Removing directory and starting from scratch.")
+            except CheckpointNotFoundError as e:
+                print(f"Failed to load checkpoint from {output_dir}, with error: {e}. Removing directory and starting from scratch.")
                 shutil.rmtree(output_dir, ignore_errors=True)
 
         # Create output directory if it doesn't exist

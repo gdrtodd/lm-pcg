@@ -15,7 +15,9 @@ def report_progress(sweep_configs: List[Config], hyperparams: Iterable):
     for cfg in sweep_configs:
         run_dir = os.path.join("./logs", get_run_name(cfg))
         ckpt_file = os.path.join(run_dir, f"checkpoint-{cfg.num_train_steps}")
-        if os.path.exists(ckpt_file):
+        if not os.path.exists(run_dir):
+            print(f"Run directory not found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])}")
+        elif os.path.exists(ckpt_file):
             print(f"Checkpoint found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])} at {cfg.num_train_steps} steps")
         else:
             # Get any other checkpoint files
@@ -61,7 +63,7 @@ def cross_evaluate(config: CrossEvalConfig, sweep_configs: List[Config], sweep_p
     hyperparams = [k for k in sweep_params.keys()]
 
     # Prioritize the order of the hyperparameters
-    hyperparam_sort_order = ['model', 'sample_prop', 'annotation_keys', 'seed', 'gen_temp', 'gen_top_p', 'gen_beams']
+    hyperparam_sort_order = ['model', 'source', 'sample_prop', 'annotation_keys', 'seed', 'gen_temp', 'gen_top_p', 'gen_beams']
     hyperparams = sorted(hyperparams, key=lambda k: hyperparam_sort_order.index(k) if k in hyperparam_sort_order else len(hyperparam_sort_order))
 
     # Sort the configs according to the order of relevant hyperparameters above
