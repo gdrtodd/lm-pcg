@@ -44,6 +44,8 @@ def report_progress(sweep_configs: List[Config], hyperparams: Iterable):
 
 
 def process_hyperparam_str(hp_str: str) -> tuple:
+    """Manually break up hyperparameter sweeps into lists of values. Ad hoc, some edge cases are probably not handled.
+    Ideally we could borrow some hydra utilities for this, but they do not seem easily accessible."""
     try:
         return list(eval(hp_str))
     except:

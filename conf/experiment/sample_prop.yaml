@@ -5,6 +5,7 @@ hydra:
       # seed: range(0, 5)
       # seed: range(5, 10)
       seed: range(0, 10)
+
       sample_prop: 0.001, 0.01, 0.1
 
 exp_name: dataset_size

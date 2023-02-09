@@ -5,6 +5,7 @@ hydra:
       # seed: range(0, 5)
       # seed: range(5, 10)
       seed: range(0, 10)
-      annotation_keys: "[solution_len], [prop_empty], [prop_empty, solution_len]"
+
+      annotation_keys: "['solution_len'], ['prop_empty'], ['prop_empty', 'solution_len']"
 
 exp_name: controllability

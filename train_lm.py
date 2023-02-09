@@ -148,9 +148,6 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
             data_loader_iter = iter(data_loader)
             batch_i = 0
 
-            if not args.no_log:
-                save_train_state(model, optimizer, global_step, output_dir)
-
 
     except KeyboardInterrupt:
         progress_bar.close()
