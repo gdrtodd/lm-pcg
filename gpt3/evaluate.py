@@ -19,7 +19,7 @@ def infer(model,simulations, model_name, exp_no, dataset):
     generations["is_novel"] = []
     generations["is_playable"] = []
 
-    temp = 0.5
+    temp = 1
     top_p = 1
     for sss in range(0, simulations):
 
@@ -160,11 +160,11 @@ model_8 = {
 }
 model_name = "davinci"
 
-exp_no = 400002
+exp_no = 400003
 
 simulations = 100
 
-eval_only = True
+eval_only = False
 
 dataset = "microban"
 
