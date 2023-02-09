@@ -276,14 +276,14 @@ def main(args: Config):
         if args.overwrite:
             shutil.rmtree(output_dir, ignore_errors=True)
         
-        elif os.path.exists(output_dir):
-            try:
-                model, optimizer_state_dict, global_step = load_train_state(output_dir)
-                optimizer.load_state_dict(optimizer_state_dict)
-                print("Loaded checkpoint from step", global_step)
-            except FileNotFoundError:
-                print(f"No checkpoint not found in {output_dir}. Removing directory and starting from scratch.")
-                shutil.rmtree(output_dir, ignore_errors=True)
+        # elif os.path.exists(output_dir):
+        #     try:
+        model, optimizer_state_dict, global_step = load_train_state(output_dir)
+        optimizer.load_state_dict(optimizer_state_dict)
+        print("Loaded checkpoint from step", global_step)
+        #     except FileNotFoundError:
+        #         print(f"No checkpoint not found in {output_dir}. Removing directory and starting from scratch.")
+        #         shutil.rmtree(output_dir, ignore_errors=True)
 
         # Create output directory if it doesn't exist
         if not os.path.exists(output_dir):

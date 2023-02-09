@@ -49,10 +49,10 @@ class Config:
     gen_typical_p: float = 1.0
     sample_contexts: bool = False
     sample_sequential: bool = False
+    eval_tolerance: int = 5
 
 @dataclass
 class EvalConfig(Config):
-    eval_tolerance: int = 5
     num_eval_proc: int = 10  # For computing solutions in parallel
     render: bool = False
 
