@@ -50,6 +50,7 @@ class Config:
     sample_contexts: bool = False
     sample_sequential: bool = False
     eval_tolerance: int = 5
+    eval_controllability: bool = False
 
 @dataclass
 class EvalConfig(Config):

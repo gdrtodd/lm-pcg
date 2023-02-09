@@ -7,7 +7,9 @@ from griddly import GymWrapperFactory
 import gym
 import hydra
 from Levenshtein import distance
+import matplotlib.pyplot as plt
 from multiprocessing import Pool, get_context
+import numpy as np
 from PIL import Image
 import torch
 from tqdm import tqdm
@@ -203,6 +205,90 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     return prop_accurate, prop_playable, prop_novel, diversity
 
 
+def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config):
+    '''
+    Evaluate the controllability of the specifeid model by generating a number of levels for a variety of sample conditions,
+    and generating a confusion matrix based on the results
+    '''
+
+    model.to(device)
+
+    assert args.annotation_keys is not None, "Must specify annotation keys to evaluate controllability"
+
+    # Initialize confusion matrix. Each row represents a generated annotation bin, and each column represents a target
+    # annotation bin. We have an extra row for the "unplayable" bin
+    confusion_matrix = np.zeros((11, 10))
+    bottom_row_idx = confusion_matrix.shape[0] - 1
+
+    if args.annotation_keys == ["solution_len"]:
+        targets, width = list(range(5, 100, 10)), 10                                # middle of each of 10 bins from 0 to 100
+        contexts = [dataset._format_annotation([target]) for target in targets]
+
+    else:
+        raise NotImplementedError
+
+    with torch.no_grad():
+        for context_idx, context in tqdm(enumerate(contexts), total=len(contexts), desc="Determining controllability"):
+            samples = model.generate(
+                tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device),
+                max_length=args.gen_len,
+                temperature=args.gen_temp,
+                do_sample=True,
+                top_k=args.gen_top_k,
+                top_p=args.gen_top_p,
+                typical_p=args.gen_typical_p,
+                num_beams=args.gen_beams,
+                num_return_sequences=args.num_eval_samples,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+
+            samples = [dataset.decode(sample) for sample in samples]
+
+            if args.num_eval_proc == 1:
+                solutions = [dataset.get_solution(sample, verbose=False) for sample in tqdm(samples, total=len(samples), desc="Computing solutions",
+                                                                                            leave=False)]
+            
+            else:
+                # FIXME: This makes things much slower (at least with num_eval_proc=10 or so -- just multiproc overhead?)
+                with get_context("spawn").Pool(args.num_eval_proc) as pool:
+                    get_solution = partial(dataset.get_solution, verbose=False)
+                    solutions = list(tqdm(pool.imap(get_solution, samples), total=len(samples), desc="Computing solutions", leave=False))
+
+            solutions = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in solutions]
+
+            if args.annotation_keys == ["solution_len"]:
+                name = "Solution Length"
+                for solution in solutions:
+                    if len(solution) == 0:
+                        observed_idx = bottom_row_idx # bottom row is for unplayable levels
+
+                    else:
+                        observed_idx = max(bottom_row_idx - int(len(solution) / width) - 1, 0)
+
+                    confusion_matrix[observed_idx, context_idx] += 1
+
+
+        # Generate the heatmap
+        fig, ax = plt.subplots()
+        im = ax.imshow(confusion_matrix)
+
+        x_labels = [f"{target-(width/2)+1}-{target+(width/2)}" for target in targets]
+        y_labels = [f"{target-(width/2)+1}-{target+(width/2)}" for target in reversed(targets)] + ["Unplayable"]
+
+        # Show ticks
+        ax.set_xticks(np.arange(len(x_labels)), labels=x_labels)
+        ax.set_yticks(np.arange(len(y_labels)), labels=y_labels)
+
+        # Rotate the x-tick labels and set their alignment.
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                 rotation_mode="anchor")
+
+        ax.set_title(f"Controllability Confusion Matrix for {name}")
+        plt.savefig(f"./results/{'+'.join(args.annotation_keys)}_controllability.png")
+            
+
+
+
 @hydra.main(version_base="1.2.0", config_path="conf", config_name="eval")
 def main(args: Config):
     run_name = get_run_name(args)
@@ -263,8 +349,11 @@ def main(args: Config):
     if args.render:
         render_dir = os.path.join(output_dir, 'renders')
 
-    evaluate(model, device, tokenizer, dataset, args, verbose=True, num_steps_trained=global_step, 
-             render_dir=render_dir, num_proc=args.num_eval_proc)
+    if args.eval_controllability:
+        eval_controllability(model, device, tokenizer, dataset, args)
+    else:
+        evaluate(model, device, tokenizer, dataset, args, verbose=True, num_steps_trained=global_step, 
+                render_dir=render_dir, num_proc=args.num_eval_proc)
 
     # SIGSEGV ?? ... griddly?
 
