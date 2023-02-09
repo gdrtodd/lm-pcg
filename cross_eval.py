@@ -56,7 +56,9 @@ def process_hyperparam_str(hp_str: str) -> tuple:
 def main(config: CrossEvalConfig):
     # Load up eval hyperparameters from conf/eval.yaml
     eval_sweep_params = yaml.load(open("conf/eval.yaml", "r"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
-    train_sweep_params = yaml.load(open(f"conf/experiment/{config.sweep}.yaml"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
+    train_sweep = yaml.load(open(f"conf/experiment/{config.sweep}.yaml"), Loader=yaml.FullLoader)
+    train_sweep_params = train_sweep['hydra']['sweeper']['params']
+
     eval_sweep_params = {k: process_hyperparam_str(v) for k, v in eval_sweep_params.items()}
     train_sweep_params = {k: process_hyperparam_str(v) for k, v in train_sweep_params.items()}
     sweep_params = {**train_sweep_params, **eval_sweep_params}
@@ -77,9 +79,8 @@ def main(config: CrossEvalConfig):
     # Filter out any invalid configs.
     sweep_configs = filter_configs(sweep_configs)
 
-    cfg_0 = sweep_configs[0]
+    exp_name = train_sweep['exp_name']
 
-    exp_name = cfg_0.exp_name
     print("=" * 80)
     print(f"EXPERIMENT: {exp_name}")
     print("=" * 80)
@@ -108,7 +109,7 @@ def main(config: CrossEvalConfig):
     # Report training progress
     if config.report_progress:
         report_progress(sweep_configs, train_sweep_params.keys())
-        return
+        # return
 
     # Create a dataframe that holds the results of each evaluation
     main_dataframe = []
