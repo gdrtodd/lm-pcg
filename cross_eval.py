@@ -52,12 +52,58 @@ def process_hyperparam_str(hp_str: str) -> tuple:
     except:
         return [i.strip() for i in hp_str.split(',')]
 
+def filter_seeds(sweep_configs: List[Config], eval_data_dicts: List[Dict], max_seeds: int):
+    filtered_configs, filtered_eval_data_dicts = [], []
+    name_occs = {}
+    for cfg, eval_data in zip(sweep_configs, eval_data_dicts):
+
+        # Get run name excluding seed
+        _seed = cfg.seed
+        cfg.seed = 0
+        name = get_run_name(cfg)
+        cfg.seed = _seed
+
+        # If we've seen this run too many times already, exclude the config
+        if name in name_occs:
+            if name_occs[name] == max_seeds:
+                continue
+        
+        else:
+            name_occs[name] = 0
+
+        name_occs[name] += 1
+        filtered_configs.append(cfg)
+        filtered_eval_data_dicts.append(eval_data)
+
+    return filtered_configs, filtered_eval_data_dicts
+
+def filter_incomplete(sweep_configs: List[Config], eval_data_dicts: List[Dict], min_steps_trained: int):
+    filtered_configs, filtered_eval_data_dicts = [], []
+    for config, eval_data in zip(sweep_configs, eval_data_dicts):
+        run_dir = os.path.join("./logs", config.run_name)
+
+        if 'num_steps_trained' not in eval_data:
+            print(f"Missing num_steps_trained in eval data. Skipping config.")
+            continue
+
+        if eval_data['num_steps_trained'] < min_steps_trained:
+            print(f"Skipping config because it was not trained for enough steps. Trained for {eval_data['num_steps_trained']} steps, but should have trained for {config.num_train_steps} steps.")
+            continue
+
+        # if eval_data['num_steps_trained'] > cross_eval_config.num_train_steps + 10:
+        #     print(f"Skipping config because it was trained for too many steps. Trained for {eval_data['num_steps_trained']} steps, but should have trained for {config.num_train_steps} steps.")
+        #     continue
+
+        filtered_configs.append(config)
+        filtered_eval_data_dicts.append(eval_data)
+
+    return filtered_configs, filtered_eval_data_dicts
 
 @hydra.main(version_base=None, config_path="conf", config_name="cross_eval")
-def main(config: CrossEvalConfig):
+def main(cross_eval_config: CrossEvalConfig):
     # Load up eval hyperparameters from conf/eval.yaml
     eval_sweep_params = yaml.load(open("conf/eval.yaml", "r"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
-    train_sweep = yaml.load(open(f"conf/experiment/{config.sweep}.yaml"), Loader=yaml.FullLoader)
+    train_sweep = yaml.load(open(f"conf/experiment/{cross_eval_config.sweep}.yaml"), Loader=yaml.FullLoader)
     train_sweep_params = train_sweep['hydra']['sweeper']['params']
 
     eval_sweep_params = {k: process_hyperparam_str(v) for k, v in eval_sweep_params.items()}
@@ -65,7 +111,7 @@ def main(config: CrossEvalConfig):
     sweep_params = {**train_sweep_params, **eval_sweep_params}
 
     # Manually create per-experiment configs.
-    sweep_configs = [copy.deepcopy(config)]
+    sweep_configs = [copy.deepcopy(cross_eval_config)]
     for param_k, param_v_lst in sweep_params.items():
         new_sweep_configs = []
 
@@ -108,7 +154,7 @@ def main(config: CrossEvalConfig):
     sweep_configs = [sweep_configs[i] for i in _cfg_sort_idxs]
 
     # Report training progress
-    if not config.gen_table:
+    if not cross_eval_config.gen_table:
         report_progress(sweep_configs, train_sweep_params.keys())
         return
 
@@ -116,8 +162,9 @@ def main(config: CrossEvalConfig):
     main_dataframe = []
  
     filtered_configs = []
+    eval_data_dicts = []
     for config in sweep_configs:
-        run_dir = os.path.join("./logs", get_run_name(config))
+        run_dir = os.path.join("./logs", config.run_name)
         eval_json_filename = f"temp-{config.gen_temp}_topk-{config.gen_top_k}_topp-{config.gen_top_p}_typicalp-{config.gen_typical_p}_beams-{config.gen_beams}_threshold-{config.novelty_threshold}.json"
         
         try:
@@ -125,13 +172,17 @@ def main(config: CrossEvalConfig):
         except (json.decoder.JSONDecodeError, FileNotFoundError) as error:
             print(f"Issue loading JSON: {error}")
             continue
+        eval_data_dicts.append(eval_data)
+        filtered_configs.append(config)
+    sweep_configs = filtered_configs
+    
+    sweep_configs, eval_data_dicts = filter_incomplete(sweep_configs, eval_data_dicts, min_steps_trained=cross_eval_config.num_train_steps)
+    sweep_configs, eval_data_dicts = filter_seeds(sweep_configs, eval_data_dicts, cross_eval_config.max_trials)
+
+    filtered_configs = []
+    for config, eval_data in zip(sweep_configs, eval_data_dicts):
 
         eval_dict = {
-                    #  "model": config.model,
-                    #  "source": config.source,
-                    #  "sample_prop": config.sample_prop,
-                    #  "annotation_keys": config.annotation_keys,
-                    #  "seed": config.seed,
                      "gen_temp": config.gen_temp,
                      "gen_top_p": config.gen_top_p,
                      "gen_beams": config.gen_beams,
@@ -147,6 +198,7 @@ def main(config: CrossEvalConfig):
         filtered_configs.append(config)
 
         main_dataframe.append(eval_dict)
+
     sweep_configs = filtered_configs
 
     if len(main_dataframe) == 0:
@@ -162,7 +214,6 @@ def main(config: CrossEvalConfig):
 
     row_indices = pd.MultiIndex.from_tuples(row_tuples, names=row_index_names)
 
-
     main_dataframe = pd.DataFrame(main_dataframe, index=row_indices)
     main_dataframe.to_html("./results/main_dataframe.html")
 
@@ -177,15 +228,15 @@ def main(config: CrossEvalConfig):
     max_over_eval_hyperparams = average_over_seeds.groupby(hyperparams)
     max_over_eval_hyperparams = max_over_eval_hyperparams.apply(lambda x: x.loc[x.restricted_diversity.idxmax()])
 
-    eval_columns = ["prop_novel", "prop_playable", "prop_accurate", "restricted_diversity"]
+    eval_columns = ["prop_novel", "prop_playable", "prop_accurate", "less_restricted_diversity", "restricted_diversity"]
 
     # If we're not controlling with prompts, exclude accuracy
-    if config.annotation_keys is None:
+    if cross_eval_config.sweep != "controls":
         eval_columns.remove("prop_accurate")
+        eval_columns.remove("restricted_diversity")
 
     # For display purposes, restrict to just model, novelty, playability, accuracy, all three, and diversity
     to_display = max_over_eval_hyperparams[eval_columns]
-
 
     # Rename the columns to be more readable and save to LaTeX
     to_display = to_display.rename(columns={
@@ -200,12 +251,12 @@ def main(config: CrossEvalConfig):
 
     to_display.index.names = [v.replace("_", " ") for v in to_display.index.names]
 
-    # Not actually comparing rows against each other (except )
-    if exp_name != 'controls':
-        # Bold the max values
-        # to_display = to_display.style.apply(highlight_max, axis=0)
-        to_display = to_display.style.highlight_max(axis=None,
-                            props='font-weight:bold;')
+    # Not actually comparing rows against each other (except in less_restricted_diversity)
+    # if cross_eval_config.sweep != 'controls':
+    # Bold the max values
+    # to_display = to_display.style.apply(highlight_max, axis=0)
+    to_display = to_display.style.highlight_max(axis=None,
+                        props='font-weight:bold;')
 
     # Round to 3 decimal places
     to_display = to_display.format("{:.3f}")

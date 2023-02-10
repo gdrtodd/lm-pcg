@@ -10,6 +10,7 @@ class Config:
     # Dataset
     game: str = "sokoban"
     source: str = "boxoban"  # choices=["boxoban", "microban"]
+    char_encoding: bool = False
     level_key: str = "level"
     annotation_keys: typing.Optional[typing.List[str]] = None
     num_annotation_buckets: typing.Optional[int] = None
@@ -26,6 +27,7 @@ class Config:
     learning_rate: float = 1e-4
 
     # Run
+    run_name: str = ""  # This gets set later by `get_run_name(cfg)`
     exp_name: str = ""
     overwrite: bool = False  # Overwrite the output directory if it exists (otherwise, attempt to load train state)
     seed: int = 42
@@ -66,6 +68,9 @@ class CrossEvalConfig(EvalConfig):
 
     # Printout the latest checkpoints for each experiment in the sweep.
     gen_table: bool = False
+
+    # How many completely trained seeds to use in the cross-eval.
+    max_trials: int = 5
 
 
 cs = ConfigStore.instance()

@@ -19,7 +19,7 @@ class CheckpointNotFoundError(FileNotFoundError):
 def get_run_name(args: Config):
     run_name = os.path.join(
         args.game,
-        f"source:{args.source}",
+        f"source:{args.source}" + (f"_char-encoded" if args.char_encoding else ""),
         f"model:{args.model}",
         f"level_key:{args.level_key}",
         f"annotation_keys:{args.annotation_keys}",
@@ -35,6 +35,7 @@ def filter_configs(cfgs: List[Config]):
     new_cfgs = []
     for cfg in cfgs:
         if is_valid_config(cfg):
+            cfg.run_name = get_run_name(cfg)
             new_cfgs.append(cfg)
     return new_cfgs
 
@@ -55,7 +56,6 @@ def save_train_state(model, optimizer, global_step, output_dir):
     model.save_pretrained(output_dir)
     torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
 
-    new_ckpt_file = str(global_step)
     with open(os.path.join(output_dir, "global_step.txt"), "w") as f:
         f.write(str(global_step))
 

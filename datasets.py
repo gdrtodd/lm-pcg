@@ -13,6 +13,7 @@ import torch
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 from tqdm import tqdm
+from conf.config import Config
 
 from utils import BOXOBAN_MAPPING, encode_boxoban_text, decode_boxoban_text
 from sokoban_solvers import EnhancedAStarAgent, State
@@ -107,6 +108,7 @@ class AnnotatedSokobanDataset(GameDataset):
                  source: str,
                  tokenizer: AutoTokenizer,
                  model_name: str,
+                 cfg: Config=None,
                  level_key: str="level",
                  annotation_keys: typing.Optional[typing.List[str]]=None,
                  num_annotation_buckets: typing.Optional[int]=None,
@@ -124,6 +126,7 @@ class AnnotatedSokobanDataset(GameDataset):
         self.chunk_size = chunk_size
         self.novelty_threshold = novelty_threshold
         self.seed = seed
+        self.pad_token_id = self.tokenizer.pad_token_id
 
         self.level_key = level_key
         self.annotation_keys = annotation_keys
@@ -163,7 +166,7 @@ class AnnotatedSokobanDataset(GameDataset):
         self.level_hashes = set(self.train_dataframe["level_hash"].values)
 
         full_cache_dir = os.path.join(cache_dir,
-                                      f"source:{source}",
+                                      f"source:{source}" + ("char-encoded" if cfg.char_encoding else ""),
                                       f"model:{model_name}",
                                       f"level_key:{level_key}",
                                       f"annotation_keys:{annotation_keys}",
@@ -188,6 +191,9 @@ class AnnotatedSokobanDataset(GameDataset):
         else:
             print(f"No token cache found at {token_ids_path}. Tokenizing levels...")
             # Optionally ensure each tile-character is tokenized individually
+            if cfg.char_encoding:
+                tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
+                tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
             # if data_source == "boxoban-chars":
             #     tile_chars = list(BOXOBAN_MAPPING.keys()) + ["\n", tokenizer.bos_token, tokenizer.eos_token]
             #     tile_encodings = {c: self.tokenizer.encode(c)[0] for c in tile_chars}
@@ -204,9 +210,20 @@ class AnnotatedSokobanDataset(GameDataset):
                     annotation_values = [self.train_dataframe.iloc[idx][key] for key in self.annotation_keys]
                     annotation = self._format_annotation(annotation_values)
 
-                # Add annotation and tokenizer BOS / EOS tokens, then tokenize
-                full_level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
-                token_ids = self.tokenizer.encode(full_level, padding="max_length", max_length=self.chunk_size, truncation=True)
+                if cfg.char_encoding:
+                    # Manual tokenization to ensure each tile token is separate
+                    token_ids = []
+                    level_rows = level.split('\n')
+                    for row in level_rows:
+                        token_ids += [tile_encodings[c] for c in row] + [tile_encodings['\n']]
+                    token_ids = [tile_encodings[tokenizer.bos_token]] + token_ids + [tile_encodings[tokenizer.eos_token]]
+                    # Pad
+                    token_ids += [self.pad_token_id for _ in range(self.chunk_size - len(token_ids))]
+
+                else:
+                    # Add annotation and tokenizer BOS / EOS tokens, then tokenize
+                    full_level = f"{tokenizer.bos_token}{annotation}{level}{tokenizer.eos_token}"
+                    token_ids = self.tokenizer.encode(full_level, padding="max_length", max_length=self.chunk_size, truncation=True)
 
                 all_token_ids += token_ids
 
@@ -491,7 +508,7 @@ class LMazeLMDataset(GameDataset):
         self.chunk_size = chunk_size
 
         self.tokenizer = tokenizer
-        # self.pad_token_id = self.tokenizer.pad_token_id
+        self.pad_token_id = self.tokenizer.pad_token_id
 
         data_dir = os.path.join("./data", "l-mazes", split)
 

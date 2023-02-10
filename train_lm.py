@@ -239,7 +239,8 @@ def main(args: Config):
                                           novelty_threshold=args.novelty_threshold,
                                           sample_prop=args.sample_prop,
                                           chunk_size=args.chunk_size,
-                                          seed=args.seed)
+                                          seed=args.seed,
+                                          cfg=args)
 
     elif args.game == "l_maze":
         dataset = LMazeLMDataset(tokenizer,
