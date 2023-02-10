@@ -50,6 +50,9 @@ def process_hyperparam_str(hp_str: str) -> tuple:
     try:
         return list(eval(hp_str))
     except:
+        if not isinstance(hp_str, str):
+            # Only sweeping across 1 value.
+            return [hp_str]
         return [i.strip() for i in hp_str.split(',')]
 
 def filter_seeds(sweep_configs: List[Config], eval_data_dicts: List[Dict], max_seeds: int):
@@ -75,6 +78,8 @@ def filter_seeds(sweep_configs: List[Config], eval_data_dicts: List[Dict], max_s
         filtered_configs.append(cfg)
         filtered_eval_data_dicts.append(eval_data)
 
+    print("Seeds per experiment: " + '\n'.join([f"{k}: {v} " for k, v in name_occs.items()]))
+
     return filtered_configs, filtered_eval_data_dicts
 
 def filter_incomplete(sweep_configs: List[Config], eval_data_dicts: List[Dict], min_steps_trained: int):
@@ -84,6 +89,10 @@ def filter_incomplete(sweep_configs: List[Config], eval_data_dicts: List[Dict], 
 
         if 'num_steps_trained' not in eval_data:
             print(f"Missing num_steps_trained in eval data. Skipping config.")
+            continue
+        
+        # HACK for backward compat. FIXME delete me
+        if 'less_restricted_diversity' not in eval_data:
             continue
 
         if eval_data['num_steps_trained'] < min_steps_trained:
@@ -228,7 +237,7 @@ def main(cross_eval_config: CrossEvalConfig):
     max_over_eval_hyperparams = average_over_seeds.groupby(hyperparams)
     max_over_eval_hyperparams = max_over_eval_hyperparams.apply(lambda x: x.loc[x.restricted_diversity.idxmax()])
 
-    eval_columns = ["prop_novel", "prop_playable", "prop_accurate", "less_restricted_diversity", "restricted_diversity"]
+    eval_columns = ["prop_novel", "prop_playable", "prop_accurate", "diversity", "less_restricted_diversity", "restricted_diversity"]
 
     # If we're not controlling with prompts, exclude accuracy
     if cross_eval_config.sweep != "controls":
@@ -243,12 +252,16 @@ def main(cross_eval_config: CrossEvalConfig):
                                             "prop_novel": "Novelty",
                                             "prop_playable": "Playability",
                                             "prop_accurate": "Accuracy",
-                                            "less_restricted_diversity": "Diversity",
-                                            "restricted_diversity": "Score"},
+                                            "diversity": "Diversity",
+                                            "less_restricted_diversity": "Score",
+                                            "restricted_diversity": "Control Score"},
                                     index={'model': 'Model',
                                            'annotation_keys': 'Annotation Keys'},
                                     )
 
+    row_index_rename = {'annotation_keys': 'Controls'}
+
+    to_display.index.names = [row_index_rename.get(v, v) for v in to_display.index.names]
     to_display.index.names = [v.replace("_", " ") for v in to_display.index.names]
 
     # Not actually comparing rows against each other (except in less_restricted_diversity)

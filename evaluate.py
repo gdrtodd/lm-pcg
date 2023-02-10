@@ -23,6 +23,10 @@ from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name
 def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
              num_steps_trained: int, verbose=False, render_dir=None, num_proc=1):
 
+    # HACK: to avoid OOM errors on GPU
+    if args.gen_beams >= 10:
+        args.sample_sequential = True
+
     # Map the model to the available device
     model.to(device)
 
@@ -238,6 +242,10 @@ def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTok
         targets, width = list(range(5, 100, 10)), 10                                # middle of each of 10 bins from 0 to 100
         contexts = [dataset._format_annotation([target]) for target in targets]
 
+    elif args.annotation_keys == ["prop_empty"]:
+        targets, width = list(range(0, 1, 10)), 0.1                                # middle of each of 10 bins from 0 to 100
+        contexts = [dataset._format_annotation([target]) for target in targets]
+
     else:
         raise NotImplementedError
 
@@ -281,12 +289,26 @@ def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTok
 
                     confusion_matrix[observed_idx, context_idx] += 1
 
+            if args.annotation_keys == ["prop_empty"]:
+                name = "Emptiness"
+                emptinesses = [dataset.get_emptiness(sample) for sample in samples]
+                for emptiness in emptinesses:
+                    if len(solution) == 0:
+                        observed_idx = bottom_row_idx # bottom row is for unplayable levels
+
+                    else:
+                        observed_idx = max(bottom_row_idx - int(len(solution) / width) - 1, 0)
+
+                    confusion_matrix[observed_idx, context_idx] += 1
 
         # Generate the heatmap
         fig, ax = plt.subplots()
         im = ax.imshow(confusion_matrix)
 
         if args.annotation_keys == ["solution_len"]:
+            limits = [(int(target-(width/2)+1), int(target+(width/2))) for target in targets]
+        
+        if args.annotation_keys == ["prop_empty"]:
             limits = [(int(target-(width/2)+1), int(target+(width/2))) for target in targets]
 
         x_labels = [f"{lower}-{upper}" for lower, upper in limits]
