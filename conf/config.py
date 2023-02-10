@@ -65,7 +65,7 @@ class CrossEvalConfig(EvalConfig):
     sweep: str = "models"
 
     # Printout the latest checkpoints for each experiment in the sweep.
-    report_progress: bool = True
+    gen_table: bool = False
 
 
 cs = ConfigStore.instance()

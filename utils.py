@@ -54,11 +54,13 @@ def save_train_state(model, optimizer, global_step, output_dir):
     output_dir = os.path.join(output_dir, "checkpoint-{}".format(global_step))
     model.save_pretrained(output_dir)
     torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
+
+    new_ckpt_file = str(global_step)
     with open(os.path.join(output_dir, "global_step.txt"), "w") as f:
         f.write(str(global_step))
 
-    # Delete prior checkpoints
-    [shutil.rmtree(path) for path in prior_checkpoint_paths]
+    # Delete prior checkpoints (and avoid deleting the current checkpoint)
+    [shutil.rmtree(path) for path in prior_checkpoint_paths if path != output_dir]
 
 def load_train_state(output_dir):
     print("Attempting to load checkpoint from {}...".format(output_dir))
