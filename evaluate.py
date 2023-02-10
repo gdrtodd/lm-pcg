@@ -7,7 +7,9 @@ from griddly import GymWrapperFactory
 import gym
 import hydra
 from Levenshtein import distance
+import matplotlib.pyplot as plt
 from multiprocessing import Pool, get_context
+import numpy as np
 from PIL import Image
 import torch
 from tqdm import tqdm
@@ -20,6 +22,10 @@ from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name
 
 def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
              num_steps_trained: int, verbose=False, render_dir=None, num_proc=1):
+
+    # HACK: to avoid OOM errors on GPU
+    if args.gen_beams >= 10:
+        args.sample_sequential = True
 
     # Map the model to the available device
     model.to(device)
@@ -110,6 +116,16 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     prop_novel_playable_accurate = len(novel_playable_accurate_levels) / len(samples)
     restricted_diversity = dataset.get_diversity(novel_playable_accurate_levels) / len(samples)
 
+    # Slightly less restricted diversity: only require that the level is playable and novel (not accurate)
+    # For non-controlled experiments, this will be the same as above (avoid recomputing diversity).
+    if all(accuracies):
+        prop_novel_playable = prop_novel_playable_accurate
+        less_restricted_diversity = restricted_diversity
+    else:
+        novel_playable_levels = [level for idx, level in enumerate(samples) if novelties[idx] and len(solutions[idx]) > 0]
+        prop_novel_playable = len(novel_playable_levels) / len(samples)
+        less_restricted_diversity = dataset.get_diversity(novel_playable_levels) / len(samples)
+
     if verbose:
         print("GENERATION PARAMETERS:")
         print(f"\tLength: {args.gen_len}")
@@ -147,8 +163,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
         print(f"Diversity (lower bound): {diversity}")
-        print(f"\nPropotion novel, playable, and accurate: {prop_novel_playable_accurate}")
-        print(f"Diversity (restricted): {restricted_diversity}")
+        if args.annotation_keys is not None:
+            print(f"\nPropotion novel, playable, and accurate: {prop_novel_playable_accurate}")
+            print(f"Diversity (restricted): {restricted_diversity}")
+        print(f"\nProprtion novel and playable: {prop_novel_playable}")
+        print(f"Diversity (less restricted): {less_restricted_diversity}")
 
     # Save stats to json
     stats = {
@@ -160,6 +179,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         "prop_novel_playable_accurate": prop_novel_playable_accurate,
         "diversity": diversity,
         "restricted_diversity": restricted_diversity,
+        "less_restricted_diversity": less_restricted_diversity,
         "samples": samples,
         "solutions": solutions,
         "accuracies": accuracies,
@@ -201,6 +221,118 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     model.train()
             
     return prop_accurate, prop_playable, prop_novel, diversity
+
+
+def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config):
+    '''
+    Evaluate the controllability of the specifeid model by generating a number of levels for a variety of sample conditions,
+    and generating a confusion matrix based on the results
+    '''
+
+    model.to(device)
+
+    assert args.annotation_keys is not None, "Must specify annotation keys to evaluate controllability"
+
+    # Initialize confusion matrix. Each row represents a generated annotation bin, and each column represents a target
+    # annotation bin. We have an extra row for the "unplayable" bin
+    confusion_matrix = np.zeros((11, 10))
+    bottom_row_idx = confusion_matrix.shape[0] - 1
+
+    if args.annotation_keys == ["solution_len"]:
+        targets, width = list(range(5, 100, 10)), 10                                # middle of each of 10 bins from 0 to 100
+        contexts = [dataset._format_annotation([target]) for target in targets]
+
+    elif args.annotation_keys == ["prop_empty"]:
+        targets, width = list(range(0, 1, 10)), 0.1                                # middle of each of 10 bins from 0 to 100
+        contexts = [dataset._format_annotation([target]) for target in targets]
+
+    else:
+        raise NotImplementedError
+
+    with torch.no_grad():
+        for context_idx, context in tqdm(enumerate(contexts), total=len(contexts), desc="Determining controllability"):
+            samples = model.generate(
+                tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device),
+                max_length=args.gen_len,
+                temperature=args.gen_temp,
+                do_sample=True,
+                top_k=args.gen_top_k,
+                top_p=args.gen_top_p,
+                typical_p=args.gen_typical_p,
+                num_beams=args.gen_beams,
+                num_return_sequences=args.num_eval_samples,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+
+            samples = [dataset.decode(sample) for sample in samples]
+
+            if args.num_eval_proc == 1:
+                solutions = [dataset.get_solution(sample, verbose=False) for sample in tqdm(samples, total=len(samples), desc="Computing solutions",
+                                                                                            leave=False)]
+            
+            else:
+                # FIXME: This makes things much slower (at least with num_eval_proc=10 or so -- just multiproc overhead?)
+                with get_context("spawn").Pool(args.num_eval_proc) as pool:
+                    get_solution = partial(dataset.get_solution, verbose=False)
+                    solutions = list(tqdm(pool.imap(get_solution, samples), total=len(samples), desc="Computing solutions", leave=False))
+
+            solutions = ["" if sol is False else "".join([str(GRIDDLY_ACTION_MAPPING[(step['x'], step['y'])]) for step in sol]) for sol in solutions]
+
+            if args.annotation_keys == ["solution_len"]:
+                name = "Solution Length"
+                for solution in solutions:
+                    if len(solution) == 0:
+                        observed_idx = bottom_row_idx # bottom row is for unplayable levels
+
+                    else:
+                        observed_idx = max(bottom_row_idx - int(len(solution) / width) - 1, 0)
+
+                    confusion_matrix[observed_idx, context_idx] += 1
+
+            if args.annotation_keys == ["prop_empty"]:
+                name = "Emptiness"
+                emptinesses = [dataset.get_emptiness(sample) for sample in samples]
+                for emptiness in emptinesses:
+                    if len(solution) == 0:
+                        observed_idx = bottom_row_idx # bottom row is for unplayable levels
+
+                    else:
+                        observed_idx = max(bottom_row_idx - int(len(solution) / width) - 1, 0)
+
+                    confusion_matrix[observed_idx, context_idx] += 1
+
+        # Generate the heatmap
+        fig, ax = plt.subplots()
+        im = ax.imshow(confusion_matrix)
+
+        if args.annotation_keys == ["solution_len"]:
+            limits = [(int(target-(width/2)+1), int(target+(width/2))) for target in targets]
+        
+        if args.annotation_keys == ["prop_empty"]:
+            limits = [(int(target-(width/2)+1), int(target+(width/2))) for target in targets]
+
+        x_labels = [f"{lower}-{upper}" for lower, upper in limits]
+        y_labels = [f"{lower}-{upper}" for lower, upper in reversed(limits)] + ["Unplayable"]
+
+        # Show ticks
+        ax.set_xticks(np.arange(len(x_labels)), labels=x_labels)
+        ax.set_yticks(np.arange(len(y_labels)), labels=y_labels)
+
+        # Rotate the x-tick labels and set their alignment.
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                 rotation_mode="anchor")
+
+        ax.set_title(f"Controllability Confusion Matrix for {name}")
+        ax.set_xlabel(f"Target {name}")
+        ax.set_ylabel(f"Actual {name}")
+
+        fig.tight_layout()
+
+        run_name = f"{args.model}_temp-{args.gen_temp}_topp-{args.gen_top_p}_beams-{args.gen_beams}_seed-{args.seed}_{'+'.join(args.annotation_keys)}"
+        plt.savefig(f"./results/{run_name}_controllability_heatmap.png")
+        np.save(f"./results/{run_name}_controllability_confusion.npy", confusion_matrix)
+            
+
 
 
 @hydra.main(version_base="1.2.0", config_path="conf", config_name="eval")
@@ -252,7 +384,8 @@ def main(args: Config):
                                           novelty_threshold=args.novelty_threshold,
                                           sample_prop=args.sample_prop,
                                           chunk_size=args.chunk_size,
-                                          seed=args.seed)
+                                          seed=args.seed,
+                                          cfg=args)
 
     else:
         raise NotImplementedError
@@ -263,8 +396,11 @@ def main(args: Config):
     if args.render:
         render_dir = os.path.join(output_dir, 'renders')
 
-    evaluate(model, device, tokenizer, dataset, args, verbose=True, num_steps_trained=global_step, 
-             render_dir=render_dir, num_proc=args.num_eval_proc)
+    if args.eval_controllability:
+        eval_controllability(model, device, tokenizer, dataset, args)
+    else:
+        evaluate(model, device, tokenizer, dataset, args, verbose=True, num_steps_trained=global_step, 
+                render_dir=render_dir, num_proc=args.num_eval_proc)
 
     # SIGSEGV ?? ... griddly?
 

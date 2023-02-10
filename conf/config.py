@@ -10,6 +10,7 @@ class Config:
     # Dataset
     game: str = "sokoban"
     source: str = "boxoban"  # choices=["boxoban", "microban"]
+    char_encoding: bool = False
     level_key: str = "level"
     annotation_keys: typing.Optional[typing.List[str]] = None
     num_annotation_buckets: typing.Optional[int] = None
@@ -26,21 +27,22 @@ class Config:
     learning_rate: float = 1e-4
 
     # Run
+    run_name: str = ""  # This gets set later by `get_run_name(cfg)`
     exp_name: str = ""
     overwrite: bool = False  # Overwrite the output directory if it exists (otherwise, attempt to load train state)
     seed: int = 42
-    batch_size: int = 16
+    batch_size: int = 32
     # epochs: int = 20
     num_train_steps: int = 100_000
     save_freq: int = 1000
-    eval_freq: int = 1000
+    eval_freq: int = 5000
     no_log: bool = False
 
     # Generation
     render: bool = False
     num_eval_proc: int = 1
     num_eval_samples: int = 10
-    gen_freq: int = 500
+    gen_freq: int = 1000
     gen_len: int = 128
     gen_temp: float = 1
     gen_beams: int = 5
@@ -50,12 +52,16 @@ class Config:
     sample_contexts: bool = False
     sample_sequential: bool = False
     eval_tolerance: int = 5
+    eval_controllability: bool = False
+
 
 @dataclass
 class EvalConfig(Config):
     num_eval_samples: int = 100
     num_eval_proc: int = 10  # For computing solutions in parallel
     render: bool = False
+    sample_sequential: bool = False
+
 
 @dataclass
 class CrossEvalConfig(EvalConfig):
@@ -64,7 +70,10 @@ class CrossEvalConfig(EvalConfig):
     sweep: str = "models"
 
     # Printout the latest checkpoints for each experiment in the sweep.
-    report_progress: bool = True
+    gen_table: bool = False
+
+    # How many completely trained seeds to use in the cross-eval.
+    max_trials: int = 5
 
 
 cs = ConfigStore.instance()

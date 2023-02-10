@@ -8,49 +8,6 @@ defaults:
   - override hydra/launcher: submitit_slurm
 
 
-# Dataset args
-game: sokoban
-source: boxoban
-level_key: level
-annotation_keys: null
-num_annotation_buckets: null
-holdout_solution_lens: null
-chunk_size: 128
-novelty_threshold: 5
-sample_prop: null
-
-# Model args
-model: gpt2
-warmup_proportion: 0.0002
-weight_decay: 0.01
-max_grad_norm: 1
-learning_rate: 0.0001
-
-# Run args
-exp_name: ""
-overwrite: false
-seed: 42
-batch_size: 32
-# epochs: 25
-save_freq: 1000
-eval_freq: 1000
-num_train_steps: 100_000
-no_log: false
-
-# Generation args
-num_eval_proc: 1
-num_eval_samples: 10
-gen_freq: 500
-gen_len: 128
-gen_temp: 1
-gen_beams: 5
-gen_top_k: 50
-gen_top_p: 1.0
-gen_typical_p: 1.0
-sample_contexts: false
-sample_sequential: false
-
-
 hydra:
   sweeper:
     params:
