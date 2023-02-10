@@ -5,6 +5,7 @@ import os
 from typing import Dict, Iterable, List, Any, Sequence
 
 import hydra
+from omegaconf import ListConfig
 import pandas as pd
 import yaml
 
@@ -107,7 +108,7 @@ def main(config: CrossEvalConfig):
     sweep_configs = [sweep_configs[i] for i in _cfg_sort_idxs]
 
     # Report training progress
-    if config.report_progress:
+    if not config.gen_table:
         report_progress(sweep_configs, train_sweep_params.keys())
         return
 
@@ -140,7 +141,8 @@ def main(config: CrossEvalConfig):
                      "prop_accurate": eval_data["prop_accurate"],
                      "prop_novel_playable_accurate": eval_data["prop_novel_playable_accurate"],
                      "diversity": eval_data["diversity"],
-                     "restricted_diversity": eval_data["restricted_diversity"]
+                     "restricted_diversity": eval_data["restricted_diversity"],
+                     "less_restricted_diversity": eval_data["less_restricted_diversity"],
                     }
         filtered_configs.append(config)
 
@@ -154,8 +156,8 @@ def main(config: CrossEvalConfig):
     row_index_names = list(train_sweep_params.keys())
     row_tuples = [tuple([cfg[param] for param in row_index_names]) for cfg in sweep_configs]
     
-    # Turn Iterables into strings. Remove any underscores.
-    row_tuples = [tuple([', '.join(cfg[param]) if isinstance(cfg[param], Iterable) else cfg[param] for param in row_index_names]) for cfg in sweep_configs]
+    # Turn ListConfigs into strings. Remove any underscores.
+    row_tuples = [tuple([', '.join(cfg[param]) if isinstance(cfg[param], ListConfig) else cfg[param] for param in row_index_names]) for cfg in sweep_configs]
     row_tuples = [tuple([v.replace("_", " ") if isinstance(v, str) else v for v in tpl]) for tpl in row_tuples]
 
     row_indices = pd.MultiIndex.from_tuples(row_tuples, names=row_index_names)
@@ -175,8 +177,14 @@ def main(config: CrossEvalConfig):
     max_over_eval_hyperparams = average_over_seeds.groupby(hyperparams)
     max_over_eval_hyperparams = max_over_eval_hyperparams.apply(lambda x: x.loc[x.restricted_diversity.idxmax()])
 
+    eval_columns = ["prop_novel", "prop_playable", "prop_accurate", "restricted_diversity"]
+
+    # If we're not controlling with prompts, exclude accuracy
+    if config.annotation_keys is None:
+        eval_columns.remove("prop_accurate")
+
     # For display purposes, restrict to just model, novelty, playability, accuracy, all three, and diversity
-    to_display = max_over_eval_hyperparams[["prop_novel", "prop_playable", "prop_accurate", "restricted_diversity"]]
+    to_display = max_over_eval_hyperparams[eval_columns]
 
 
     # Rename the columns to be more readable and save to LaTeX
@@ -184,6 +192,7 @@ def main(config: CrossEvalConfig):
                                             "prop_novel": "Novelty",
                                             "prop_playable": "Playability",
                                             "prop_accurate": "Accuracy",
+                                            "less_restricted_diversity": "Diversity",
                                             "restricted_diversity": "Score"},
                                     index={'model': 'Model',
                                            'annotation_keys': 'Annotation Keys'},
@@ -191,8 +200,12 @@ def main(config: CrossEvalConfig):
 
     to_display.index.names = [v.replace("_", " ") for v in to_display.index.names]
 
-    # Bold the max values
-    to_display = to_display.style.apply(highlight_max, axis=0)
+    # Not actually comparing rows against each other (except )
+    if exp_name != 'controls':
+        # Bold the max values
+        # to_display = to_display.style.apply(highlight_max, axis=0)
+        to_display = to_display.style.highlight_max(axis=None,
+                            props='font-weight:bold;')
 
     # Round to 3 decimal places
     to_display = to_display.format("{:.3f}")
@@ -206,7 +219,8 @@ def main(config: CrossEvalConfig):
         os.makedirs(save_dir)
 
     # to_display = to_display.style.hide(axis='index')
-    to_display = to_display.to_latex(os.path.join(save_dir, "eval_sweep_table.tex"))
+    to_display = to_display.to_latex(os.path.join(save_dir, "eval_sweep_table.tex"),
+                                     hrules=True)
 
     best_eval_hyperparams.to_csv(os.path.join(save_dir, "eval_hyperparams.csv"))
 

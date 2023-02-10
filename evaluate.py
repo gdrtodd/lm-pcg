@@ -112,6 +112,16 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     prop_novel_playable_accurate = len(novel_playable_accurate_levels) / len(samples)
     restricted_diversity = dataset.get_diversity(novel_playable_accurate_levels) / len(samples)
 
+    # Slightly less restricted diversity: only require that the level is playable and novel (not accurate)
+    # For non-controlled experiments, this will be the same as above (avoid recomputing diversity).
+    if all(accuracies):
+        prop_novel_playable = prop_novel_playable_accurate
+        less_restricted_diversity = restricted_diversity
+    else:
+        novel_playable_levels = [level for idx, level in enumerate(samples) if novelties[idx] and len(solutions[idx]) > 0]
+        prop_novel_playable = len(novel_playable_levels) / len(samples)
+        less_restricted_diversity = dataset.get_diversity(novel_playable_levels) / len(samples)
+
     if verbose:
         print("GENERATION PARAMETERS:")
         print(f"\tLength: {args.gen_len}")
@@ -149,8 +159,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
         print(f"Diversity (lower bound): {diversity}")
-        print(f"\nPropotion novel, playable, and accurate: {prop_novel_playable_accurate}")
-        print(f"Diversity (restricted): {restricted_diversity}")
+        if args.annotation_keys is not None:
+            print(f"\nPropotion novel, playable, and accurate: {prop_novel_playable_accurate}")
+            print(f"Diversity (restricted): {restricted_diversity}")
+        print(f"\nProprtion novel and playable: {prop_novel_playable}")
+        print(f"Diversity (less restricted): {less_restricted_diversity}")
 
     # Save stats to json
     stats = {
@@ -162,6 +175,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         "prop_novel_playable_accurate": prop_novel_playable_accurate,
         "diversity": diversity,
         "restricted_diversity": restricted_diversity,
+        "less_restricted_diversity": less_restricted_diversity,
         "samples": samples,
         "solutions": solutions,
         "accuracies": accuracies,
