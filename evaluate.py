@@ -291,7 +291,10 @@ def eval_controllability(model: AutoModelForCausalLM, device, tokenizer: AutoTok
         ax.set_ylabel(f"Actual {name}")
 
         fig.tight_layout()
-        plt.savefig(f"./results/{'+'.join(args.annotation_keys)}_controllability.png")
+
+        run_name = f"{args.model}_temp-{args.gen_temp}_topp-{args.gen_top_p}_beams-{args.gen_beams}_seed-{args.seed}_{'+'.join(args.annotation_keys)}"
+        plt.savefig(f"./results/{run_name}_controllability_heatmap.png")
+        np.save(f"./results/{run_name}_controllability_confusion.npy", confusion_matrix)
             
 
 
