@@ -23,8 +23,8 @@ def extract_data(df, filename, experiment):
 
 def main():
     
-    file_path = "cache/microban_data.h5"
+    file_path = "cache/microban_flips_data.h5"
     df = h5_to_df(file_path)
-    extract_data(df, "microban_control.jsonl", "control")
+    extract_data(df, "cache/microban_flips_control.jsonl", "control")
 
 main()

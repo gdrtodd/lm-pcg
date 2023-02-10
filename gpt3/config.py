@@ -9,9 +9,9 @@ class Config:
 
     # EVALUATION
     exp_no : int = 400003
-    simulations : int = 1
-    eval_only : bool = False
-    experiment : str = "controllability" 
+    simulations : int = 100
+    eval_only : bool = True
+    experiment : str = "sampling" 
 
 
     # GENERATION

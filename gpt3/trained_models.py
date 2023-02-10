@@ -35,12 +35,15 @@ class TrainedModels:
     }
     
     # Microban  Flips Rotations
-    
+    # sample
     model_10 = {
         "10_epochs" : "davinci:ft-gameinnovationlab:microbanfp-level-sample-1-10epochs-2023-02-08-22-54-11"
     }
+    # comtrol
     
-    
+    model_11 = {
+        "10_epochs" : "davinci:ft-personal:microban-f-p-level-control-1-10epochs-2023-02-10-16-43-01"
+    }
     ### 600Level Boxoban
     
     model_5 = {

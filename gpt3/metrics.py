@@ -32,7 +32,7 @@ def is_novel(level,source):
             train_path = "cache/data_000.csv"
             is_h5 = False
         elif source == "microban":
-            train_path = "cache/microban_flips_rotations_data.h5"
+            train_path = "cache/microban_flips_data.h5"
             is_h5 = True
     elif args.experiment == "controllability":
         if source == "microban":
@@ -46,6 +46,8 @@ def is_novel(level,source):
             return False
 
     return True
+
+
 
     
 

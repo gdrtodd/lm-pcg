@@ -71,7 +71,7 @@ def eval(path,simulations, df, is_dataframe=False):
 
 
     playability = df.loc[df.is_playable != "False"]# Playability
-    novelty = df.loc[df.is_novel == True]# novelty
+    novelty = df.loc[df.is_novel != False]# novelty
     diversity = get_diversity(df["level"],args.novelty_threshold) #Diversity
     dpn = novelty.loc[novelty.is_playable != "False"] # Diversity of set of playable and novel levels
     restricted_diversity =  get_diversity(list(dpn["level"]),args.novelty_threshold) #Diversity of novel and playable levels
@@ -89,10 +89,11 @@ def eval_from_df(df,simulation,dataset):
     generations["is_novel"] = []
     generations["is_playable"] = []
 
-    for level in list(df["level"]):
+    for i,level in enumerate(list(df["level"])):
 
         generations["level"].append(level)
         generations["is_novel"].append(is_novel(level,dataset))
+
     generations["is_playable"] = list(df["is_playable"])
     df_g = pd.DataFrame(generations)
 
@@ -103,7 +104,7 @@ model = TrainedModels()
 args = Config()
 
 if args.eval_only:
-    df = pd.read_csv("exp_results/result_davinci_0.5-temp_1-top_p_simulations-100_exp-no_400002.csv",index_col=0)
+    df = pd.read_csv("exp_results/result_davinci_0.5-temp_1-top_p_simulations-100_exp-no_300.csv",index_col=0)
 else:
     df = infer(model.model_10["10_epochs"],
                args.simulations,
