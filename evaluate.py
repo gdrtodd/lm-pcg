@@ -15,17 +15,17 @@ import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from conf.config import Config
+from conf.config import Config, EvalConfig
 from datasets import GameDataset, AnnotatedSokobanDataset
 from utils import BOXOBAN_TO_GRIDDLY_CHARS, GRIDDLY_ACTION_MAPPING, get_run_name, load_train_state, save_gif
 
 
-def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, args: Config, 
+def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, dataset: GameDataset, cfg: EvalConfig, 
              num_steps_trained: int, verbose=False, render_dir=None, num_proc=1):
 
     # HACK: to avoid OOM errors on GPU
-    if args.gen_beams >= 10:
-        args.sample_sequential = True
+    if cfg.gen_beams >= 10:
+        cfg.sample_sequential = True
 
     # Map the model to the available device
     model.to(device)
@@ -37,39 +37,39 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
     if verbose: print("Generating samples...")
     with torch.no_grad():
 
-        if args.sample_contexts:
+        if cfg.sample_contexts:
             contexts = torch.stack([tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device) for 
-                                    _ in range(args.num_eval_samples)], axis=0).squeeze(1)
+                                    _ in range(cfg.num_eval_samples)], axis=0).squeeze(1)
             return_sequences = 1
 
         else:
             contexts = tokenizer.encode(tokenizer.bos_token + dataset.gen_context(), return_tensors="pt").to(device)
-            return_sequences = args.num_eval_samples
+            return_sequences = cfg.num_eval_samples
         
-        if args.sample_sequential and not args.sample_contexts:
+        if cfg.sample_sequential and not cfg.sample_contexts:
             samples = [model.generate(
                 contexts,
-                max_length=args.gen_len,
-                temperature=args.gen_temp,
+                max_length=cfg.gen_len,
+                temperature=cfg.gen_temp,
                 do_sample=True,
-                top_k=args.gen_top_k,
-                top_p=args.gen_top_p,
-                typical_p=args.gen_typical_p,
-                num_beams=args.gen_beams,
+                top_k=cfg.gen_top_k,
+                top_p=cfg.gen_top_p,
+                typical_p=cfg.gen_typical_p,
+                num_beams=cfg.gen_beams,
                 num_return_sequences=1,
                 pad_token_id=tokenizer.eos_token_id,
-            )[0] for _ in range(args.num_eval_samples)]
+            )[0] for _ in range(cfg.num_eval_samples)]
 
         else:
             samples = model.generate(
                 contexts,
-                max_length=args.gen_len,
-                temperature=args.gen_temp,
+                max_length=cfg.gen_len,
+                temperature=cfg.gen_temp,
                 do_sample=True,
-                top_k=args.gen_top_k,
-                top_p=args.gen_top_p,
-                typical_p=args.gen_typical_p,
-                num_beams=args.gen_beams,
+                top_k=cfg.gen_top_k,
+                top_p=cfg.gen_top_p,
+                typical_p=cfg.gen_typical_p,
+                num_beams=cfg.gen_beams,
                 num_return_sequences=return_sequences,
                 pad_token_id=tokenizer.eos_token_id,
             )
@@ -79,18 +79,18 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
     
 
-    if args.num_eval_proc == 1:
+    if cfg.num_eval_proc == 1:
         if verbose: print("Computing solutions...")
-        solutions = [dataset.get_solution(sample, verbose=False) for sample in samples]
+        solutions = [dataset.get_solution(sample, verbose=False, n_search_iters=cfg.n_search_iters) for sample in samples]
         novelties, nearest_lvls, nearest_lvl_sols = zip(*[dataset.is_novel(sample) for sample in samples])
-        accuracies, infos = zip(*[dataset.is_accurate(sample, solution, args.eval_tolerance) for sample, solution in zip(samples, solutions)])
+        accuracies, infos = zip(*[dataset.is_accurate(sample, solution, cfg.eval_tolerance) for sample, solution in zip(samples, solutions)])
     
     else:
         # FIXME: This makes things much slower (at least with num_eval_proc=10 or so -- just multiproc overhead?)
-        with get_context("spawn").Pool(args.num_eval_proc) as pool:
-            get_solution = partial(dataset.get_solution, verbose=False)
+        with get_context("spawn").Pool(cfg.num_eval_proc) as pool:
+            get_solution = partial(dataset.get_solution, verbose=False, n_search_iters=cfg.n_search_iters)
             solutions = list(tqdm(pool.imap(get_solution, samples), total=len(samples), desc="Computing solutions"))
-            samples_sols = list(zip(samples, solutions, [args.eval_tolerance] * len(samples)))
+            samples_sols = list(zip(samples, solutions, [cfg.eval_tolerance] * len(samples)))
             accuracies, infos = zip(*list(tqdm(pool.imap(dataset.is_accurate_multi, samples_sols), total=len(samples_sols), desc="Computing accuracies")))
             novelties, nearest_lvls, nearest_lvl_sols = zip(*list(tqdm(pool.imap(dataset.is_novel, samples), total=len(samples), desc="Computing novelties")))
     
@@ -128,12 +128,12 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
     if verbose:
         print("GENERATION PARAMETERS:")
-        print(f"\tLength: {args.gen_len}")
-        print(f"\tTemperature: {args.gen_temp}")
-        print(f"\tTop-k: {args.gen_top_k}")
-        print(f"\tTop-p: {args.gen_top_p}")
-        print(f"\tTypical-p: {args.gen_typical_p}")
-        print(f"\tBeams: {args.gen_beams}")
+        print(f"\tLength: {cfg.gen_len}")
+        print(f"\tTemperature: {cfg.gen_temp}")
+        print(f"\tTop-k: {cfg.gen_top_k}")
+        print(f"\tTop-p: {cfg.gen_top_p}")
+        print(f"\tTypical-p: {cfg.gen_typical_p}")
+        print(f"\tBeams: {cfg.gen_beams}")
 
         for idx, sample in enumerate(samples):
             print("_" * 80)
@@ -145,7 +145,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
 
 
-            print(f"\nSample {idx + 1} of {args.num_eval_samples}")
+            print(f"\nSample {idx + 1} of {cfg.num_eval_samples}")
             print(f"Playable: {solutions[idx] != ''}" + (f" ({len(solutions[idx])} steps)" if solutions[idx] != "" else ""))
             print(f"Novel: {novelties[idx]}")
 
@@ -154,8 +154,8 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
                 print(f"-Solution edit distance: {distance(solutions[idx], nearest_lvl_sols[idx])}")
 
             print(f"Accurate: {accuracies[idx]}")
-            if args.annotation_keys is not None:
-                for key in args.annotation_keys:
+            if cfg.annotation_keys is not None:
+                for key in cfg.annotation_keys:
                     print(f"\t{key}: {infos[idx][key]}")
 
         print("_" * 80)
@@ -163,7 +163,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         print(f"Proportion playable: {prop_playable}")
         print(f"Proportion novel: {prop_novel}")
         print(f"Diversity (lower bound): {diversity}")
-        if args.annotation_keys is not None:
+        if cfg.annotation_keys is not None:
             print(f"\nPropotion novel, playable, and accurate: {prop_novel_playable_accurate}")
             print(f"Diversity (restricted): {restricted_diversity}")
         print(f"\nProprtion novel and playable: {prop_novel_playable}")
@@ -185,12 +185,13 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         "accuracies": accuracies,
         "novelties": novelties,
         "infos": infos,
+        "n_search_iters": cfg.n_search_iters,
     }
 
 
     # Save json to disc
-    run_name = get_run_name(args)
-    eval_filename = f"temp-{args.gen_temp}_topk-{args.gen_top_k}_topp-{args.gen_top_p}_typicalp-{args.gen_typical_p}_beams-{args.gen_beams}_threshold-{dataset.novelty_threshold}.json"
+    run_name = get_run_name(cfg)
+    eval_filename = f"temp-{cfg.gen_temp}_topk-{cfg.gen_top_k}_topp-{cfg.gen_top_p}_typicalp-{cfg.gen_typical_p}_beams-{cfg.gen_beams}_threshold-{dataset.novelty_threshold}.json"
     stats_path = os.path.join('logs', run_name, eval_filename)
     with open(stats_path, "w") as f:
         json.dump(stats, f, indent=4)

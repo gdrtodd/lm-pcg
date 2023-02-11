@@ -76,7 +76,7 @@ class GameDataset(Dataset):
         level_hash = self._hash_level(level)
         return level_hash not in self.level_hashes
 
-    def get_solution(self, level):
+    def get_solution(self, level, n_search_iters):
         raise NotImplementedError
 
     def __getitem__(self, idx):
@@ -242,7 +242,7 @@ class AnnotatedSokobanDataset(GameDataset):
 
             self.all_token_ids = np.array(all_token_ids, dtype=np.int32)
 
-    def get_solution(self, level, verbose=False):
+    def get_solution(self, level, n_search_iters=100_000_000, verbose=False):
         '''
         Determines whether the given level is playable by checking a variety of conditions:
           1. the level is rectangular (i.e. every line is the same length)
@@ -286,7 +286,7 @@ class AnnotatedSokobanDataset(GameDataset):
 
         # Check if the level can be solved by an ASTAR agent
         level_state = State().stringInitialize(level_lines)
-        solution, node, iters = self.solver.getSolution(level_state, maxIterations=150000)
+        solution, node, iters = self.solver.getSolution(level_state, maxIterations=n_search_iters)
         if not node.checkWin():
             if verbose: print("--Level cannot be solved (... in 150k steps)--")
             return False
@@ -362,7 +362,7 @@ class AnnotatedSokobanDataset(GameDataset):
             # Avoid division by zero
             prop_empty = None
         else:
-            prop_empty = level.count(" ") / n_tiles
+            prop_empty = level.count("-") / n_tiles
 
         level_info = {"width": len(level.split("\n")[0]),
                       "height": len(level.split("\n")),
@@ -396,6 +396,8 @@ class AnnotatedSokobanDataset(GameDataset):
 
             # Check if the observed value is within the specified tolerance
             elif tolerance is not None:
+                if key == 'Prop empty':
+                    tolerance = 0.01
                 if abs(float(value) - observed_value) > tolerance:
                     return False, level_info
 
