@@ -203,6 +203,11 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
             shutil.rmtree(render_dir)
         os.makedirs(render_dir)
 
+        # Remove the fucking prompt
+        if cfg.annotation_keys is not None:
+            n_annotation_keys = len(cfg.annotation_keys)
+            samples = ['\n'.join(sample.split("\n")[n_annotation_keys:]) for sample in samples]
+
         trans_table = {ord(k): v for k, v in BOXOBAN_TO_GRIDDLY_CHARS.items()}
         wrapper = GymWrapperFactory()
         wrapper.build_gym_from_yaml('sokoban', os.path.join('gdy_games', 'sokoban.yaml'))
