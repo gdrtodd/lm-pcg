@@ -27,15 +27,15 @@ def is_novel(level,source):
     """
     Function to calculate diversity
     """
-    if args.experiment == "sampling":
-        if source == "boxoban":
+    if args.experiment == "sample":
+        if args.source == "boxoban":
             train_path = "cache/data_000.csv"
             is_h5 = False
-        elif source == "microban":
-            train_path = "cache/microban_flips_data.h5"
+        elif args.source == "microban":
+            train_path = "cache/microban_flips_rotations_data.h5"
             is_h5 = True
     elif args.experiment == "controllability":
-        if source == "microban":
+        if args.source == "microban":
             train_path = "cache/microban_flips_rotations_data.h5"
             is_h5 = True
 

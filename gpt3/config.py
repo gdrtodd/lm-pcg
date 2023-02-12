@@ -8,10 +8,10 @@ class Config:
     source : str = "microban" 
 
     # EVALUATION
-    exp_no : int = 400003
+    exp_no : int = 700
     simulations : int = 100
-    eval_only : bool = True
-    experiment : str = "sampling" 
+    eval_only : bool = False
+    experiment : str = "sample" 
 
 
     # GENERATION

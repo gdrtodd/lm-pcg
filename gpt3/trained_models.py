@@ -29,9 +29,19 @@ class TrainedModels:
         "5_epochs" : "curie:ft-gameinnovationlab:microban-sample-5-5epochs-2023-02-06-10-54-34"
     }
     
+    #control
+    model_12 = {
+        "10_epochs" : "davinci:ft-personal:microban-orig-level-control-1-10epochs-2023-02-10-18-32-25"
+    }
     # MICROBAN FLIPS
     model_9 = {
         "10_epochs" : "davinci:ft-gameinnovationlab:microbanflips-level-sample-1-10epochs-2023-02-08-18-19-15"
+    }
+
+    # control
+
+    model_13 = {
+        "10_epochs" : "davinci:ft-personal:microban-flips-level-control-1-10epochs-2023-02-10-20-25-28"
     }
     
     # Microban  Flips Rotations
