@@ -62,6 +62,9 @@ class EvalConfig(Config):
     render: bool = False
     sample_sequential: bool = False
 
+    # How much astar to do
+    n_search_iters: int = 150_000
+
 
 @dataclass
 class CrossEvalConfig(EvalConfig):

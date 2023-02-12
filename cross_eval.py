@@ -55,33 +55,6 @@ def process_hyperparam_str(hp_str: str) -> tuple:
             return [hp_str]
         return [i.strip() for i in hp_str.split(',')]
 
-def filter_seeds(sweep_configs: List[Config], eval_data_dicts: List[Dict], max_seeds: int):
-    filtered_configs, filtered_eval_data_dicts = [], []
-    name_occs = {}
-    for cfg, eval_data in zip(sweep_configs, eval_data_dicts):
-
-        # Get run name excluding seed
-        _seed = cfg.seed
-        cfg.seed = 0
-        name = get_run_name(cfg)
-        cfg.seed = _seed
-
-        # If we've seen this run too many times already, exclude the config
-        if name in name_occs:
-            if name_occs[name] == max_seeds:
-                continue
-        
-        else:
-            name_occs[name] = 0
-
-        name_occs[name] += 1
-        filtered_configs.append(cfg)
-        filtered_eval_data_dicts.append(eval_data)
-
-    print("Seeds per experiment: " + '\n'.join([f"{k}: {v} " for k, v in name_occs.items()]))
-
-    return filtered_configs, filtered_eval_data_dicts
-
 def filter_incomplete(sweep_configs: List[Config], eval_data_dicts: List[Dict], min_steps_trained: int):
     filtered_configs, filtered_eval_data_dicts = [], []
     for config, eval_data in zip(sweep_configs, eval_data_dicts):
@@ -186,7 +159,6 @@ def main(cross_eval_config: CrossEvalConfig):
     sweep_configs = filtered_configs
     
     sweep_configs, eval_data_dicts = filter_incomplete(sweep_configs, eval_data_dicts, min_steps_trained=cross_eval_config.num_train_steps)
-    sweep_configs, eval_data_dicts = filter_seeds(sweep_configs, eval_data_dicts, cross_eval_config.max_trials)
 
     filtered_configs = []
     for config, eval_data in zip(sweep_configs, eval_data_dicts):
@@ -264,15 +236,12 @@ def main(cross_eval_config: CrossEvalConfig):
     to_display.index.names = [row_index_rename.get(v, v) for v in to_display.index.names]
     to_display.index.names = [v.replace("_", " ") for v in to_display.index.names]
 
-    # Not actually comparing rows against each other (except in less_restricted_diversity)
-    # if cross_eval_config.sweep != 'controls':
     # Bold the max values
-    # to_display = to_display.style.apply(highlight_max, axis=0)
-    to_display = to_display.style.highlight_max(axis=None,
-                        props='font-weight:bold;')
+    to_display = to_display.style.highlight_max(axis=0,
+                        props='bfseries: ;')
 
     # Round to 3 decimal places
-    to_display = to_display.format("{:.3f}")
+    to_display = to_display.format("{:.2f}")
 
     # Also separately record the eval hyperparameters
     best_eval_hyperparams = max_over_eval_hyperparams[["gen_temp", "gen_top_p", "gen_beams"]]
@@ -289,14 +258,6 @@ def main(cross_eval_config: CrossEvalConfig):
     best_eval_hyperparams.to_csv(os.path.join(save_dir, "eval_hyperparams.csv"))
 
     print("Done!")
-
-
-def highlight_max(s):
-    '''
-    Bold the maximum in a series
-    '''
-    is_max = s == s.max()
-    return ['font-weight: bold' if v else '' for v in is_max]
 
 
 
