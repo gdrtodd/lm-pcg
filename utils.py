@@ -1,9 +1,12 @@
+import ast
+from collections.abc import Iterable
 import hashlib
 from itertools import groupby
 import os
 from typing import List
 import numpy as np
 import shutil
+import yaml
 
 import imageio
 from PIL import Image
@@ -13,10 +16,53 @@ from conf.config import Config
 
 from sokoban_solvers import EnhancedAStarAgent, State
 
+# For naming runs, sort the hyperparameters in this order (e.g. model-gpt2_sample_prop-0.01_seed_4)
+HYPERPARAM_SORT_ORDER = ['model', 'source', 'sample_prop', 'annotation_keys', 'seed', 'gen_temp', 'gen_top_p', 'gen_beams']
+
+def sort_hyperparams(hyperparams):
+    """
+    Sort the hyperparameters in a consistent order. 
+    """
+    return list(sorted(hyperparams, key=lambda k: HYPERPARAM_SORT_ORDER.index(k) if k in HYPERPARAM_SORT_ORDER 
+                       else len(HYPERPARAM_SORT_ORDER)))
+
 class CheckpointNotFoundError(FileNotFoundError):
     pass
 
 def get_run_name(args: Config):
+
+    # Case 1: we're training a model using a specific experiment config. In this case, we want to determine
+    # which hyperparameters are swept over in the experiment a create a new log folder that references them
+    # specifically.
+    if args.exp_name != "":
+        train_yaml = yaml.load(open(f"conf/experiment/{args.exp_name}.yaml"), Loader=yaml.FullLoader)
+        train_sweep_params = sort_hyperparams(train_yaml['hydra']['sweeper']['params'].keys())
+
+        # Get the values of the hyperparameters that are swept over in the experiment
+        sweep_values = [args[param] for param in train_sweep_params]
+
+        # Create a unique name for the run based on the hyperparameter values
+        run_name = os.path.join(
+            args.exp_name,
+            "_".join([f"{param}-{value}" for param, value in zip(train_sweep_params, sweep_values)])
+        )
+
+    # Case 2: we're training a model using a specific set of hyperparameters. In this case, we want to
+    # create a new log folder that references any hyperparameter that is different from the default
+    else:
+        default_config = Config()
+        changed_params = sort_hyperparams([param for param in args.keys() if args[param] != default_config.__dict__.get(param)])
+       
+        run_name = os.path.join(
+            "manual",
+            "_".join([f"{param}-{args[param]}" for param in changed_params])
+        )
+
+
+    return run_name
+    
+
+def deprecated_get_run_name(args: Config):
     run_name = os.path.join(
         args.game,
         f"source:{args.source}" + (f"_char-encoded" if args.char_encoding else ""),
@@ -45,6 +91,20 @@ def is_valid_config(cfg: Config) -> bool:
         # Cannot hold out prompts when model is not trained to match prompts (?)
         return False
     return True
+
+def process_hyperparam_str(hp_str: str) -> tuple:
+    """
+    Convert the value of a hyperparameter from a string to a list of values
+    """
+    try:
+        values = ast.literal_eval(hp_str)
+        if isinstance(values, Iterable):
+            return values
+        else:
+            return (values,)
+
+    except ValueError as err:
+        exit(f"Invalid hyperparameter value: {hp_str} ({err})")
 
 
 def save_train_state(model, optimizer, global_step, output_dir):
@@ -293,43 +353,3 @@ def save_gif(env, lvl, sol, lvl_render_dir):
         render_dir, lvl_dir = os.path.split(lvl_render_dir)
         # Save gif with fps of 3
         imageio.mimsave(os.path.join(render_dir, f"{lvl_dir}.gif"), frames, fps=10)
-
-
-#     level = """
-# ##########
-# ### ######
-# ###@ #####
-# ### ######
-# ###$ #####
-# ### .#####
-# ###  #####
-# # .$ $ ###
-# #. $ .  ##
-# ##########
-#     """
-
-#     from sokoban_solvers import EnhancedAStarAgent, State
-
-#     start_state = State().stringInitialize(level.split("\n"))
-
-#     solver = EnhancedAStarAgent()
-#     sol, node, iters = solver.getSolution(start_state)
-#     print(sol)
-#     print(node.checkWin())
-
-#     output = """10 wall
-# 1 wall, 2 empty, 7 wall
-# 1 wall, 1 empty, 1 box, 7 wall
-# 1 wall, 1 goal, 1 empty, 7 wall
-# 1 wall, 1 empty, 1 goal, 7 wall
-# 1 wall, 1 empty, 1 box, 7 wall
-# 1 wall, 1 empty, 1 goal, 7 wall
-# 1 wall, 1 box, 1 empty, 1 box, 1 empty, 5 wall
-# 1 wall, 1 player, 1 empty, 1 goal, 2 empty, 4 wall
-# 10 wall"""
-
-    # print(decode_boxoban_text(output))
-
-    # print(level)
-    # print(encode_boxoban_text(level))
-    # print(decode_boxoban_text(encode_boxoban_text(level)))

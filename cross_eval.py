@@ -10,7 +10,7 @@ import pandas as pd
 import yaml
 
 from conf.config import Config, CrossEvalConfig, EvalConfig
-from utils import filter_configs, get_run_name, is_valid_config
+from utils import filter_configs, process_hyperparam_str, sort_hyperparams, get_run_name, is_valid_config
 
 
 def report_progress(sweep_configs: List[Config], hyperparams: Iterable):
@@ -44,16 +44,7 @@ def report_progress(sweep_configs: List[Config], hyperparams: Iterable):
             print(f"Checkpoint not found for {' '.join([f'{k}:{cfg[k]}' for k in hyperparams])}. Saved checkpoints: {ckpt_files}")
 
 
-def process_hyperparam_str(hp_str: str) -> tuple:
-    """Manually break up hyperparameter sweeps into lists of values. Ad hoc, some edge cases are probably not handled.
-    Ideally we could borrow some hydra utilities for this, but they do not seem easily accessible."""
-    try:
-        return list(eval(hp_str))
-    except:
-        if not isinstance(hp_str, str):
-            # Only sweeping across 1 value.
-            return [hp_str]
-        return [i.strip() for i in hp_str.split(',')]
+
 
 def filter_incomplete(sweep_configs: List[Config], eval_data_dicts: List[Dict], min_steps_trained: int):
     filtered_configs, filtered_eval_data_dicts = [], []
@@ -83,6 +74,7 @@ def filter_incomplete(sweep_configs: List[Config], eval_data_dicts: List[Dict], 
 
 @hydra.main(version_base=None, config_path="conf", config_name="cross_eval")
 def main(cross_eval_config: CrossEvalConfig):
+
     # Load up eval hyperparameters from conf/eval.yaml
     eval_sweep_params = yaml.load(open("conf/eval.yaml", "r"), Loader=yaml.FullLoader)['hydra']['sweeper']['params']
     train_sweep = yaml.load(open(f"conf/experiment/{cross_eval_config.sweep}.yaml"), Loader=yaml.FullLoader)
@@ -122,9 +114,8 @@ def main(cross_eval_config: CrossEvalConfig):
     hyperparams = [k for k in sweep_params.keys()]
 
     # Prioritize the order of the hyperparameters
-    hyperparam_sort_order = ['model', 'source', 'sample_prop', 'annotation_keys', 'seed', 'gen_temp', 'gen_top_p', 'gen_beams']
-    hyperparams = sorted(hyperparams, key=lambda k: hyperparam_sort_order.index(k) if k in hyperparam_sort_order else len(hyperparam_sort_order))
-
+    hyperparams = sort_hyperparams(hyperparams)
+    
     # Sort the configs according to the order of relevant hyperparameters above
     _cfgs_sortable = [tuple([cfg[k] for k in hyperparams]) for cfg in sweep_configs]
     

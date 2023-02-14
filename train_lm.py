@@ -1,3 +1,4 @@
+from conf.config import Config
 import hydra
 import json
 import omegaconf
@@ -7,7 +8,6 @@ from tqdm import tqdm
 import shutil
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from conf.config import Config
 
 from transformers import set_seed
 from transformers import get_linear_schedule_with_warmup

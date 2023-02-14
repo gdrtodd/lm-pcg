@@ -32,7 +32,7 @@ To run a cross-evaluation (aggregating the results from evaluations above to com
 ```
 python cross_eval.py sweep=models
 ```
-Here, we sweep across the train hyperparameters in `conf/experiment/models.yaml` (with the name of the yaml file passed as the `sweep` arguemtn), and the eval hyperparameters in `conf/eval.yaml`.
+Here, we sweep across the train hyperparameters in `conf/experiment/models.yaml` (with the name of the yaml file passed as the `sweep` argument), and the eval hyperparameters in `conf/eval.yaml`.
 
 ## Datasets
 

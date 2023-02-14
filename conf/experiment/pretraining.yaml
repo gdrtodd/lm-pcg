@@ -3,6 +3,6 @@ hydra:
   sweeper:
     params:
       seed: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-      source: microban, microban_flips, microban_flips_rotations
+      model: "'gpt2-untrained', 'gpt2', 'java-gpt2'"
 
-exp_name: microban
+exp_name: pretraining
