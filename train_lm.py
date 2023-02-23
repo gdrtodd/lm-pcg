@@ -13,6 +13,7 @@ from transformers import set_seed
 from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
+from peft import get_peft_config, get_peft_model, LoraConfig, TaskType
 
 from datasets import GameDataset, AnnotatedSokobanDataset, LMazeLMDataset
 from evaluate import evaluate
@@ -170,6 +171,10 @@ def main(args: Config):
     # Map from model names to the load string transformers expects
     model_mapping = {"gpt2": "gpt2",
                      "gpt2-untrained": "gpt2-untrained",
+                     "opt-350m": "facebook/opt-350m",
+                     "opt-1.3b": "facebook/opt-1.3b",
+                     "opt-2.7b": "facebook/opt-2.7b",
+                     "opt-66b": "facebook/opt-66b",
                      "codeparrot": "lvwerra/codeparrot",
                      "java-gpt2": "microsoft/CodeGPT-small-java-adaptedGPT2",
                      "incoder-1B": "facebook/incoder-1B",
@@ -259,6 +264,11 @@ def main(args: Config):
     else:
         model = AutoModelForCausalLM.from_pretrained(model_name)
         model.resize_token_embeddings(len(tokenizer))
+
+    # If specified, use Low-Rank Adaptation
+    if args.lora:
+        peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
+        model = get_peft_model(model, peft_config)
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
     data_loader = DataLoader(dataset, collate_fn=data_collator, batch_size=args.batch_size, shuffle=True, num_workers=4)

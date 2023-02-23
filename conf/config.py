@@ -18,6 +18,7 @@ class Config:
     chunk_size: int = 128
     novelty_threshold: int = 5
     sample_prop: typing.Optional[float] = 1.0
+    lora: bool = False
 
     # Model
     model: str = "gpt2"  # choices=["gpt2", "codeparrot", "java-gpt2", "incoder-1B", "incoder-6B"]
