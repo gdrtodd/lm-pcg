@@ -53,10 +53,14 @@ def get_run_name(args: Config):
         default_config = Config()
         changed_params = sort_hyperparams([param for param in args.keys() if args[param] != default_config.__dict__.get(param)])
        
-        run_name = os.path.join(
-            "manual",
-            "_".join([f"{param}-{args[param]}" for param in changed_params])
-        )
+        if changed_params == []:
+            run_name = os.path.join("manual", "default")
+
+        else:
+            run_name = os.path.join(
+                "manual",
+                "_".join([f"{param}-{args[param]}" for param in changed_params])
+            )
 
 
     return run_name
