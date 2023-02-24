@@ -9,6 +9,7 @@ import shutil
 import yaml
 
 import imageio
+from peft import PeftModelForCausalLM, PeftConfig
 from PIL import Image
 import torch
 from transformers import AutoModelForCausalLM
@@ -132,8 +133,13 @@ def save_train_state(model, optimizer, global_step, output_dir):
     # Delete prior checkpoints (and avoid deleting the current checkpoint)
     [shutil.rmtree(path) for path in prior_checkpoint_paths if path != output_dir]
 
-def load_train_state(output_dir):
-    print("Attempting to load checkpoint from {}...".format(output_dir))
+def load_train_state(output_dir, lora=False):
+    '''
+    Attempt to load the model from the most recent checkpoint in the output directory, raising an
+    error if no checkpoints exist or if there are errors loading them. The 'lora' flag indicates
+    whether to use the PEFT model
+    '''
+    
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -148,14 +154,21 @@ def load_train_state(output_dir):
     # Attempt to load most recent checkpoints, settling for earlier ones if we encounter errors.
     while len(prior_checkpoint_paths) > 0:
         ckpt_dir = prior_checkpoint_paths.pop(-1)
+        print("Attempting to load checkpoint from {}...".format(ckpt_dir))
 
         try:
-            # Load
-            model = AutoModelForCausalLM.from_pretrained(ckpt_dir)
+            # Load the model, pre-intializing the config if we're using the PEFT model
+            if lora == True:
+                config = PeftConfig.from_pretrained(ckpt_dir)
+                model = AutoModelForCausalLM.from_pretrained(config.base_model_name_or_path)
+                model = PeftModelForCausalLM.from_pretrained(model, ckpt_dir)
+            else:
+                model = AutoModelForCausalLM.from_pretrained(ckpt_dir)
+
             optimizer_state_dict = torch.load(os.path.join(ckpt_dir, "optimizer.pt"), map_location=device)
             with open(os.path.join(ckpt_dir, "global_step.txt"), "r") as f:
                 global_step = int(f.read())
-            print(f"Loaded checkpoint from {ckpt_dir}.")
+            
         except Exception as e:
             print(f"Error loading checkpoint from {ckpt_dir}: {e}")
             if len(prior_checkpoint_paths) == 0:

@@ -346,7 +346,7 @@ def main(args: Config):
     run_name = get_run_name(args)
     output_dir = f"./logs/{run_name}"
 
-    model, _, global_step = load_train_state(output_dir)
+    model, _, global_step = load_train_state(output_dir, lora=args.lora)
 
     model_mapping = {"gpt2": "gpt2",
                      "gpt2-untrained": "gpt2-untrained",

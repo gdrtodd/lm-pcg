@@ -287,9 +287,10 @@ def main(args: Config):
         
         elif os.path.exists(output_dir):
             try:
-                model, optimizer_state_dict, global_step = load_train_state(output_dir)
+                model, optimizer_state_dict, global_step = load_train_state(output_dir, lora=args.lora)
                 optimizer.load_state_dict(optimizer_state_dict)
-                print("Loaded checkpoint from step", global_step)
+                print(f"Success! Resmuing training from step {global_step}...")
+
             except CheckpointNotFoundError as e:
                 global_step = 0
                 print(f"Failed to load checkpoint from {output_dir}, with error: {e}. Removing directory and starting from scratch.")
