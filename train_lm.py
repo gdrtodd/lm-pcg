@@ -99,7 +99,7 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                     inputs = inputs.to(device)
 
                     outputs = model.generate(
-                        inputs,
+                        input_ids=inputs,
                         max_length=args.gen_len,
                         temperature=args.gen_temp,
                         do_sample=True,

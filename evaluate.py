@@ -48,7 +48,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
         
         if cfg.sample_sequential and not cfg.sample_contexts:
             samples = [model.generate(
-                contexts,
+                input_ids=contexts,
                 max_length=cfg.gen_len,
                 temperature=cfg.gen_temp,
                 do_sample=True,
@@ -62,7 +62,7 @@ def evaluate(model: AutoModelForCausalLM, device, tokenizer: AutoTokenizer, data
 
         else:
             samples = model.generate(
-                contexts,
+                input_ids=contexts,
                 max_length=cfg.gen_len,
                 temperature=cfg.gen_temp,
                 do_sample=True,
