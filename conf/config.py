@@ -54,6 +54,8 @@ class Config:
     sample_sequential: bool = False
     eval_tolerance: int = 5
     eval_controllability: bool = False
+    n_search_iters: int = 10_000_000
+    
 
 
 @dataclass

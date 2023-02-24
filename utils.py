@@ -19,6 +19,11 @@ from sokoban_solvers import EnhancedAStarAgent, State
 # For naming runs, sort the hyperparameters in this order (e.g. model-gpt2_sample_prop-0.01_seed_4)
 HYPERPARAM_SORT_ORDER = ['model', 'source', 'sample_prop', 'annotation_keys', 'seed', 'gen_temp', 'gen_top_p', 'gen_beams']
 
+# Hyperparameters which, even when changed, should not be included in the run name
+NON_NAMED_HYPERPARAMS = ["num_train_steps", "save_freq", "eval_freq", "no_log", "render", "num_eval_proc", "num_eval_samples",
+                         "gen_freq", "gen_len", "gen_temp", "gen_beams", "gen_top_k", "gen_top_p", "gen_typical_p", "sample_contexts",
+                         "sample_sequential", "eval_tolerance", "eval_controllability", "n_search_iters"]
+
 def sort_hyperparams(hyperparams):
     """
     Sort the hyperparameters in a consistent order. 
@@ -52,6 +57,7 @@ def get_run_name(args: Config):
     else:
         default_config = Config()
         changed_params = sort_hyperparams([param for param in args.keys() if args[param] != default_config.__dict__.get(param)])
+        changed_params = [param for param in changed_params if param not in NON_NAMED_HYPERPARAMS]
        
         if changed_params == []:
             run_name = os.path.join("manual", "default")
