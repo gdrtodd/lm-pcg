@@ -17,7 +17,7 @@ The config files are located in `config/`. Settings can be changed in `config/co
 python train_lm.py batch_size=32
 ```
 
-The hyperpameter sweeps used to generate the results in the paper are located in `config/experiment/`. E.g., running `python train_lm.py +experiment=model -m` will launch a sweep overr model types.
+The hyperpameter sweeps used to generate the results in the paper are located in `config/experiment/`. E.g., running `python train_lm.py +experiment=pretraining -m` will launch a sweep over model types (i.e. pretrained vs. code-pretrained vs. un-pretrained).
 
 ## Evaluation
 
@@ -58,20 +58,3 @@ Config option `game`. These describe the mechanics of the games for which our da
 
 - `l_maze`
 - `sokoban`
-
-## Encoding schemes
-
-Config option `data_source`. These describe per-token or per-row pre-processing of level files.
-
-TODO: these should perhaps be dataset-agnostic?
-
-- `l-maze` -- does nothing
-- `boxoban-chars`
-- `boxoban-text`
-
-## TODO:
-
-- try a character-based model like k9?
-<!-- - force per-character tokenization (by adding special characters between ascii symbols or similar) -->
-<!-- - re-write level to replace each token with what it represents (e.g. "wall, empty, empty, wall, player, wall"). (Would be great if we could also guarantee one token per tile to keep positions consistent.) -->
-<!-- - semantically parse each row of the level as, e.g., "3 walls, 1 empty space, 1 player, 1 wall" -->
