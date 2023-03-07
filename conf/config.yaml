@@ -8,59 +8,19 @@ defaults:
   - override hydra/launcher: submitit_slurm
 
 
-# Dataset args
-game: sokoban
-data_source: null
-chunk_size: 128
-
-# Model args
-model: java-gpt2
-warmup_proportion: 0.0002
-weight_decay: 0.01
-max_grad_norm: 1
-learning_rate: 0.0001
-
-# Run args
-exp_name: ""
-overwrite: false
-seed: 42
-batch_size: 16
-epochs: 20
-save_freq: 1000
-eval_freq: 1000
-no_log: false
-
-# Generation args
-num_eval_samples: 20
-gen_freq: 500
-gen_len: 128
-gen_context: ''
-gen_temp: 1
-gen_beams: 5
-gen_top_k: 50
-gen_top_p: 1.0
-gen_typical_p: 1.0
-
-
 hydra:
   sweeper:
     params:
       # We will sweep over these parameters when the `--multirun` flag is used.
+      seed: 0, 1, 2, 3, 4
 
-      # model: gpt2, codeparrot, java-gpt2, incoder-1B, incoder-6B 
-      model: gpt2, java-gpt2
-
-      data_source: null, boxoban-chars, boxoban-text
-      # data_source: boxoboan-chars
-
-      # chunk_size: 128, 256, 512
 
   # SLURM-specific arguments
   launcher:
     tasks_per_node: 1
-    cpus_per_task: 10
+    cpus_per_task: 8
     gpus_per_node: 1
-    timeout_min: 1440
+    timeout_min: 4320 # 3 days
     mem_gb: 30
 
   job:

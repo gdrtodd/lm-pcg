@@ -1,22 +1,25 @@
+from conf.config import Config
 import hydra
-import os
 import json
+import omegaconf
+import os
 import torch
 from tqdm import tqdm
 import shutil
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from conf.config import Config
 
+from transformers import set_seed
 from transformers import get_linear_schedule_with_warmup
 from transformers import DataCollatorForLanguageModeling
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
+from peft import get_peft_config, get_peft_model, LoraConfig, TaskType
 
-from datasets import SokobanLMDataset
+from datasets import GameDataset, AnnotatedSokobanDataset, LMazeLMDataset
 from evaluate import evaluate
-from utils import get_run_name, save_train_state, load_train_state
+from utils import CheckpointNotFoundError, get_run_name, save_train_state, load_train_state
 
-def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args):
+def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args: Config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Map the model to the available device
@@ -29,12 +32,15 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     epoch, batch_i = global_step // len(data_loader), global_step % len(data_loader)
 
     # Convert data loader to iterator and progress it to the current batch
-    data_loader_iter, dataset = iter(data_loader), data_loader.dataset
+    data_loader_iter = iter(data_loader)
+    dataset: GameDataset = data_loader.dataset
     for _ in range(batch_i):
         next(data_loader_iter)
 
     # Calculate the total number of training steps to initialize the scheduler
-    num_train_steps = len(data_loader) * args.epochs
+    # num_train_steps = len(data_loader) * args.epochs
+    num_train_steps = args.num_train_steps
+
     scheduler = get_linear_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=int(args.warmup_proportion * num_train_steps),
@@ -47,9 +53,13 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
     # Initialize the progress bar
     progress_bar = tqdm(total=num_train_steps, desc=f"Training {args.model} model")
     progress_bar.update(global_step)
+
+    done_training = False
     
     try:
-        for epoch in range(epoch, args.epochs):
+        # for epoch in range(epoch, args.epochs):
+        while not done_training:
+            epoch += 1
             for batch_i in range(batch_i, len(data_loader)):
                 global_step += 1
 
@@ -62,6 +72,10 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                 labels[labels == tokenizer.pad_token_id] = -100
 
                 loss = model(token_ids, labels=labels)[0]
+
+                if torch.isnan(loss):
+                    print(f"NaN loss detected in at global step: {global_step}, skipping")
+                    continue
 
                 # Clear some memory before the expensive gradient computation
                 del token_ids
@@ -80,59 +94,87 @@ def train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step
                 progress_bar.set_postfix({"loss": loss.item()})
 
                 if global_step%args.gen_freq == 0:
-                    inputs = tokenizer(tokenizer.bos_token + args.gen_context, return_tensors="pt").input_ids
+                    context = dataset.gen_context()
+                    inputs = tokenizer(tokenizer.bos_token + context, return_tensors="pt").input_ids
                     inputs = inputs.to(device)
 
-                    outputs = model.generate(inputs, max_length=args.gen_len, num_beams=args.gen_beams,
-                                             temperature=args.gen_temp, do_sample=True)[0]
-                    
-                    sample = tokenizer.decode(outputs, skip_special_tokens=True)
+                    outputs = model.generate(
+                        input_ids=inputs,
+                        max_length=args.gen_len,
+                        temperature=args.gen_temp,
+                        do_sample=True,
+                        top_k=args.gen_top_k,
+                        top_p=args.gen_top_p,
+                        typical_p=args.gen_typical_p,
+                        num_beams=args.gen_beams,
+                        num_return_sequences=1,
+                        pad_token_id=tokenizer.eos_token_id,
+                    )[0]
+
+                    sample = dataset.decode(outputs)
                     if not args.no_log: 
-                        log_writer.add_text("eval/random_sample", f"```\n{sample}\n```", global_step)
-                    print(f"\nSample:\n{sample}\n")
+                        log_writer.add_text("eval/random_sample", f"```\n{sample.replace('-', ' ')}\n```", global_step)
+
+                    solution = dataset.get_solution(sample)
+                    accurate, info = dataset.is_accurate(sample, solution)
+
+                    print(f"\nSample:\n{sample.replace('-', ' ')}\n")
+                    print(f"Novel: {dataset.is_novel(sample)[0]}")    
+                    print(f"Playable: {solution != False}")
+                    print(f"Accurate: {accurate}")
 
                 if global_step%args.save_freq == 0 and not args.no_log:
-                    # torch.save(model.state_dict(), os.path.join(output_dir, f"model_weights_{global_step}.pth"))
                     save_train_state(model, optimizer, global_step, output_dir)
 
                 if global_step%args.eval_freq == 0:
                     print(f"\nGenerating samples for evaluation at step {global_step}...")
-                    prop_playable, prop_novel = evaluate(model, device, tokenizer, dataset,  args)
+                    prop_accurate, prop_playable, prop_novel, diversity = evaluate(model, device, tokenizer, dataset, args, 
+                        num_steps_trained=global_step, num_proc=args.num_eval_proc)
 
+                    print("Proportion of accurate levels:", prop_accurate)
                     print("Proportion of playable levels:", prop_playable)
                     print("Proportion of novel levels:", prop_novel)
+                    print("Diversity (lower bound):", diversity)
 
                     if not args.no_log:
                         log_writer.add_scalar("eval/prop_playable", prop_playable, global_step)
                         log_writer.add_scalar("eval/prop_novel", prop_novel, global_step)
+                        log_writer.add_scalar("eval/prop_accurate", prop_accurate, global_step)
+                        log_writer.add_scalar("eval/diversity", diversity, global_step)
+
+                if global_step >= args.num_train_steps:
+                    done_training = True
+                    break
 
             # Reset the data loader iterator and save at the end of each epoch
             data_loader_iter = iter(data_loader)
             batch_i = 0
-
-            if not args.no_log:
-                save_train_state(model, optimizer, global_step, output_dir)
 
 
     except KeyboardInterrupt:
         progress_bar.close()
         exit("Stopping early due to user input")
 
-    print("Finished training.")
+    print(f"Finished training: {global_step} steps and {epoch} epochs.")
     progress_bar.close()
     if not args.no_log:
         save_train_state(model, optimizer, global_step, output_dir)
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(version_base="1.2.0", config_path="conf", config_name="config")
 def main(args: Config):
+
+    # Set the seed
+    set_seed(args.seed)
+
     run_name = get_run_name(args)
-
-    # wandb.init(project="game-generation-modeling", entity="gdrtodd", config={}, name=run_name)
-    # wandb.config.update(args)
-
 
     # Map from model names to the load string transformers expects
     model_mapping = {"gpt2": "gpt2",
+                     "gpt2-untrained": "gpt2-untrained",
+                     "opt-350m": "facebook/opt-350m",
+                     "opt-1.3b": "facebook/opt-1.3b",
+                     "opt-2.7b": "facebook/opt-2.7b",
+                     "opt-66b": "facebook/opt-66b",
                      "codeparrot": "lvwerra/codeparrot",
                      "java-gpt2": "microsoft/CodeGPT-small-java-adaptedGPT2",
                      "incoder-1B": "facebook/incoder-1B",
@@ -143,24 +185,90 @@ def main(args: Config):
 
     # Instantiate the tokenizer based on the model's
     model_name = model_mapping[args.model]
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.add_special_tokens({"pad_token": "PAD",
-                                  "bos_token": "START"})
+
+    if args.model == "gpt2-untrained":
+        tokenizer_dir = os.path.join("./caches", "gpt2-custom-tokenizer", args.game)
+
+        # Load the custom tokenizer if it exists
+        if os.path.exists(os.path.join(tokenizer_dir, "vocab.json")) and os.path.exists(os.path.join(tokenizer_dir, "merges.txt")):
+            print(f"Loading tokenizer from cache at {tokenizer_dir}...")
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
+
+            tokenizer.add_special_tokens({"pad_token": "<pad>",
+                                          "bos_token": "<s>",
+                                          "eos_token": "</s>"})
+
+        else:
+            os.makedirs(tokenizer_dir, exist_ok=True)
+
+            if args.game == "sokoban":
+                boxoban_levels_dir = os.path.join("./data", "boxoban-medium", "train")
+                boxoban_level_files = [os.path.join(boxoban_levels_dir, file) for file in os.listdir(boxoban_levels_dir) if file.endswith(".txt")]
+                microban_level_files = [os.path.join("./data", "microban", file) for file in os.listdir(os.path.join("./data", "microban")) if file.endswith(".txt")]
+
+                tokenizer_train_levels = [open(file, "r").read() for file in boxoban_level_files + microban_level_files]
+
+            else:
+                raise NotImplementedError
+
+            print("Training GPT2 tokenizer from scratch...")
+            old_tokenizer = AutoTokenizer.from_pretrained("gpt2")
+            tokenizer = old_tokenizer.train_new_from_iterator(tokenizer_train_levels,
+                                                              length=len(tokenizer_train_levels),
+                                                              vocab_size=10000,
+                                                              new_special_tokens=["<s>", "</s>", "<pad>"])
+
+            tokenizer.save_pretrained(tokenizer_dir)
+
+            tokenizer.add_special_tokens({"pad_token": "<pad>",
+                                          "bos_token": "<s>",
+                                          "eos_token": "</s>"})
+
+
+
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer.add_special_tokens({"pad_token": "PAD",
+                                    "bos_token": "START"})
 
     # Instantiate the dataset
     if args.game == "sokoban":
-        data_source = args.data_source if args.data_source else "boxoban"
-        dataset = SokobanLMDataset(tokenizer,
-                                   args.model,
-                                   data_source=data_source,
-                                   chunk_size=args.chunk_size)
+        dataset = AnnotatedSokobanDataset(args.source,
+                                          tokenizer,
+                                          args.model,
+                                          level_key=args.level_key,
+                                          annotation_keys=args.annotation_keys,
+                                          num_annotation_buckets=args.num_annotation_buckets,
+                                          holdout_solution_lens=args.holdout_solution_lens,
+                                          split="train",
+                                          novelty_threshold=args.novelty_threshold,
+                                          sample_prop=args.sample_prop,
+                                          chunk_size=args.chunk_size,
+                                          seed=args.seed,
+                                          cfg=args)
+
+    elif args.game == "l_maze":
+        dataset = LMazeLMDataset(tokenizer,
+                                 args.model,
+                                 chunk_size=args.chunk_size)
 
     else:
         raise NotImplementedError
 
     # Initialize the modelm data collator, data loader, and optimizer
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    model.resize_token_embeddings(len(tokenizer))
+    if args.model == "gpt2-untrained":
+        gpt2_config = AutoConfig.from_pretrained("gpt2")
+        model = AutoModelForCausalLM.from_config(gpt2_config)
+        model.resize_token_embeddings(len(tokenizer))
+
+    else:
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model.resize_token_embeddings(len(tokenizer))
+
+    # If specified, use Low-Rank Adaptation
+    if args.lora:
+        peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
+        model = get_peft_model(model, peft_config)
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
     data_loader = DataLoader(dataset, collate_fn=data_collator, batch_size=args.batch_size, shuffle=True, num_workers=4)
@@ -179,11 +287,13 @@ def main(args: Config):
         
         elif os.path.exists(output_dir):
             try:
-                model, optimizer_state_dict, global_step = load_train_state(output_dir)
+                model, optimizer_state_dict, global_step = load_train_state(output_dir, lora=args.lora)
                 optimizer.load_state_dict(optimizer_state_dict)
-                print("Loaded checkpoint from step", global_step)
-            except FileNotFoundError:
-                print(f"No checkpoint not found in {output_dir}. Removing directory and starting from scratch.")
+                print(f"Success! Resmuing training from step {global_step}...")
+
+            except CheckpointNotFoundError as e:
+                global_step = 0
+                print(f"Failed to load checkpoint from {output_dir}, with error: {e}. Removing directory and starting from scratch.")
                 shutil.rmtree(output_dir, ignore_errors=True)
 
         # Create output directory if it doesn't exist
@@ -191,7 +301,8 @@ def main(args: Config):
             os.makedirs(output_dir)
 
         with open(os.path.join(output_dir, "config.json"), "w") as file:
-            json.dump(dict(args), file)
+            args_dict = {key: value if not isinstance(value, omegaconf.ListConfig) else list(value) for key, value in dict(args).items()}
+            json.dump(args_dict, file)
 
     train_loop(model, tokenizer, optimizer, data_loader, output_dir, global_step, args)
 
