@@ -1,3 +1,7 @@
+## Introduction
+
+This is the repository for the paper [Level Generation Through Large Language Models](https://arxiv.org/abs/2302.05817). It trains various large language models to generate Sokoban game levels. Command-line arguments allow you to specify different model types, datasets (and dataset sizes), and controllability prompts. Code for training GPT3 relies on the OpenAI API, and is in `gpt3/`.
+
 ## Installation
 ```
 bash setup.sh
@@ -58,3 +62,15 @@ Config option `game`. These describe the mechanics of the games for which our da
 
 - `l_maze`
 - `sokoban`
+
+## Citation
+If you use our work, please cite it as:
+
+```
+@article{todd2023level,
+  title={Level Generation Through Large Language Models},
+  author={Todd, Graham and Earle, Sam and Nasir, Muhammad Umair and Green, Michael Cerny and Togelius, Julian},
+  journal={arXiv preprint arXiv:2302.05817},
+  year={2023}
+}
+```
