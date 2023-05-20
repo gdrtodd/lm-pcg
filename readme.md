@@ -67,10 +67,11 @@ Config option `game`. These describe the mechanics of the games for which our da
 If you use our work, please cite it as:
 
 ```
-@article{todd2023level,
+@inproceedings{todd2023level,
   title={Level Generation Through Large Language Models},
   author={Todd, Graham and Earle, Sam and Nasir, Muhammad Umair and Green, Michael Cerny and Togelius, Julian},
-  journal={arXiv preprint arXiv:2302.05817},
+  booktitle={Proceedings of the 18th International Conference on the Foundations of Digital Games},
+  pages={1--8},
   year={2023}
 }
 ```
